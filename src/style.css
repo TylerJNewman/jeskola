@@ -1,0 +1,398 @@
+/* Dieter Rams inspired CSS */
+:root {
+  /* Colors */
+  --bg-color: #EFEFEF;
+  /* Off-white/light grey */
+  --panel-bg: #FAFAFA;
+  --text-main: #2A2A2A;
+  --text-muted: #7A7A7A;
+
+  /* Accents */
+  --accent-orange: #EA523F;
+  --accent-green: #607C64;
+  --accent-blue: #3A7CA5;
+  --wire-color: #4A4A4A;
+
+  /* Layout */
+  --border-radius: 6px;
+  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-knob: 0 2px 4px rgba(0, 0, 0, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+
+  /* Typography */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Z-indices */
+  --z-cables: 10;
+  --z-module: 20;
+  --z-ui: 100;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  overflow: hidden;
+  /* Prevent scrolling, workspace handles panning */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  user-select: none;
+}
+
+/* Typography styles */
+h1 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+h2 {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* Build interface Layout */
+/* Top Header Bar */
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 48px;
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  z-index: var(--z-ui);
+  box-shadow: var(--shadow-sm);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-mark {
+  width: 12px;
+  height: 12px;
+  background-color: var(--text-main);
+  border-radius: 2px;
+}
+
+.controls {
+  display: flex;
+  gap: 12px;
+}
+
+/* Buttons */
+.control-btn {
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.control-btn:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.control-btn.primary {
+  background-color: var(--text-main);
+  color: white;
+  border-color: var(--text-main);
+}
+
+.control-btn.primary:hover {
+  background-color: #404040;
+}
+
+/* Palette Sidebar */
+.palette {
+  position: absolute;
+  top: 64px;
+  left: 24px;
+  width: 140px;
+  background-color: var(--panel-bg);
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
+  padding: 16px;
+  z-index: 50;
+  /* Ensure palette is above cables but below active dragged modules */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.palette-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-module-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 6px 8px;
+  text-align: left;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.1s ease;
+}
+
+.add-module-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Main Workspace */
+.workspace {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-image:
+    radial-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: 0 0;
+  cursor: grab;
+}
+
+.workspace:active {
+  cursor: grabbing;
+}
+
+.cables-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: var(--z-cables);
+}
+
+.cable {
+  fill: none;
+  stroke: var(--wire-color);
+  stroke-width: 4px;
+  /* Slightly thicker base for easier clicking */
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.1));
+  pointer-events: stroke;
+  /* Ensure just the path line receives clicks */
+  cursor: pointer;
+  transition: stroke 0.2s, stroke-width 0.2s;
+}
+
+.cable:hover {
+  stroke: var(--accent-orange);
+  stroke-width: 8px;
+  /* Huge highlight on hover so user knows they can click to destroy */
+}
+
+.cable.active {
+  stroke: var(--accent-orange);
+  pointer-events: none;
+  /* Ignore pointer events while dragging a new cable */
+}
+
+/* Synth Modules */
+.module {
+  position: absolute;
+  background-color: var(--panel-bg);
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
+  min-width: 160px;
+  z-index: 40;
+  /* modules sit between cables and top UI by default */
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+
+.module.dragging {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  opacity: 0.95;
+  z-index: 1000;
+  /* Pop to very top during drag */
+}
+
+.module-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-top-left-radius: var(--border-radius);
+  border-top-right-radius: var(--border-radius);
+  cursor: grab;
+}
+
+.module-header:active {
+  cursor: grabbing;
+}
+
+.module-close {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.module-close:hover {
+  color: var(--accent-orange);
+}
+
+.module-body {
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Ports */
+.ports {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -8px;
+}
+
+.port {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #D1D1D1;
+  border: 2px solid var(--panel-bg);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+  cursor: crosshair;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.port:hover {
+  background-color: var(--text-main);
+  transform: scale(1.2);
+}
+
+.port.input {
+  left: -18px;
+  /* Position slightly outside the module body */
+}
+
+.port.output {
+  right: -18px;
+}
+
+/* Port Labels */
+.port-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Knobs */
+.control-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.knob-container {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #E0E0E0;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 1px rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: ns-resize;
+  position: relative;
+}
+
+.knob {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #F0F0F0;
+  box-shadow: var(--shadow-knob);
+  position: relative;
+  /* Transform handles rotation */
+  transform: rotate(0deg);
+}
+
+/* The indicator line on the knob */
+.knob::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 8px;
+  background-color: var(--text-main);
+  border-radius: 1px;
+}
+
+/* Selects */
+.select-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+select {
+  font-family: var(--font-family);
+  font-size: 11px;
+  padding: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  background-color: white;
+  color: var(--text-main);
+  outline: none;
+}
