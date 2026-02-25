@@ -32,5 +32,52 @@ export const PRESETS: Record<string, string> = {
       { sourceModuleId: "fm-modulator", targetModuleId: "fm-carrier", sourcePortId: "audio", targetPortId: "freq" },
       { sourceModuleId: "fm-carrier", targetModuleId: "master", sourcePortId: "audio", targetPortId: "audio" }
     ]
+  }),
+  "classic-pluck": JSON.stringify({
+    modules: [
+      { id: "pluck-osc", type: "oscillator", x: 100, y: 100, state: { octave: 0, semitone: 0, cents: 0, mode: 'pitch', type: 'sawtooth', freqLog: false } },
+      { id: "pluck-adsr", type: "adsr", x: 100, y: 350, state: { attack: 0.01, decay: 0.2, sustain: 0.0, release: 0.1 } },
+      { id: "pluck-gain", type: "gain", x: 400, y: 200, state: { level: 0.0 } },
+      { id: "pluck-delay", type: "delay", x: 650, y: 200, state: { time: 0.4, feedback: 0.4, mix: 0.3 } }
+    ],
+    connections: [
+      { sourceModuleId: "pluck-osc", targetModuleId: "pluck-gain", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "pluck-adsr", targetModuleId: "pluck-gain", sourcePortId: "audio", targetPortId: "level" },
+      { sourceModuleId: "pluck-gain", targetModuleId: "pluck-delay", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "pluck-delay", targetModuleId: "master", sourcePortId: "audio", targetPortId: "audio" }
+    ]
+  }),
+  "acid-bass-sweep": JSON.stringify({
+    modules: [
+      { id: "acid-osc", type: "oscillator", x: 100, y: 100, state: { octave: -1, semitone: 0, cents: 0, mode: 'pitch', type: 'square', freqLog: false } },
+      { id: "acid-adsr", type: "adsr", x: 100, y: 350, state: { attack: 0.01, decay: 0.3, sustain: 0.0, release: 0.2 } },
+      { id: "acid-filter", type: "filter", x: 400, y: 100, state: { cutoff: 100, res: 15, type: 'lowpass', cutoffLog: true } },
+      { id: "acid-gain", type: "gain", x: 700, y: 200, state: { level: 0.0 } }
+    ],
+    connections: [
+      { sourceModuleId: "acid-osc", targetModuleId: "acid-filter", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "acid-filter", targetModuleId: "acid-gain", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "acid-adsr", targetModuleId: "acid-filter", sourcePortId: "audio", targetPortId: "cutoff" },
+      { sourceModuleId: "acid-adsr", targetModuleId: "acid-gain", sourcePortId: "audio", targetPortId: "level" },
+      { sourceModuleId: "acid-gain", targetModuleId: "master", sourcePortId: "audio", targetPortId: "audio" }
+    ]
+  }),
+  "ambient-pad": JSON.stringify({
+    modules: [
+      { id: "pad-osc1", type: "oscillator", x: 100, y: 100, state: { octave: 0, semitone: 0, cents: 0, mode: 'pitch', type: 'sine', freqLog: false } },
+      { id: "pad-osc2", type: "oscillator", x: 100, y: 350, state: { octave: 0, semitone: 7, cents: 4, mode: 'pitch', type: 'triangle', freqLog: false } },
+      { id: "pad-adsr", type: "adsr", x: 100, y: 600, state: { attack: 1.5, decay: 1.0, sustain: 0.8, release: 2.5 } },
+      { id: "pad-filter", type: "filter", x: 400, y: 200, state: { cutoff: 800, res: 0, type: 'lowpass', cutoffLog: true } },
+      { id: "pad-gain", type: "gain", x: 700, y: 200, state: { level: 0.0 } },
+      { id: "pad-delay", type: "delay", x: 950, y: 200, state: { time: 0.8, feedback: 0.7, mix: 0.6 } }
+    ],
+    connections: [
+      { sourceModuleId: "pad-osc1", targetModuleId: "pad-filter", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "pad-osc2", targetModuleId: "pad-filter", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "pad-filter", targetModuleId: "pad-gain", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "pad-adsr", targetModuleId: "pad-gain", sourcePortId: "audio", targetPortId: "level" },
+      { sourceModuleId: "pad-gain", targetModuleId: "pad-delay", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "pad-delay", targetModuleId: "master", sourcePortId: "audio", targetPortId: "audio" }
+    ]
   })
 };

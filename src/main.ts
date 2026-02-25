@@ -142,6 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
     <option value="sub-bass">Sub Bass (Detuned + Filter)</option>
     <option value="ethereal-drone">Ethereal Drone (Perfect 5th + Delay)</option>
     <option value="sci-fi-fm">Sci-Fi FM Laser (CV Pitch Mod)</option>
+    <option value="classic-pluck">Classic Pluck (ADSR + VCA)</option>
+    <option value="acid-bass-sweep">Acid Bass Sweep (ADSR + VCF)</option>
+    <option value="ambient-pad">Ambient Pad (ADSR + Synth)</option>
   `;
 
   const loadPresetBtn = document.createElement('button');
