@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/* === Dieter Rams Design Tokens === */
+
+@theme {
+  --color-bg: #EFEFEF;
+  --color-panel: #FAFAFA;
+  --color-text-main: #2A2A2A;
+  --color-text-light: #5A5A5A;
+  --color-text-muted: #7A7A7A;
+  --color-border: rgba(0, 0, 0, 0.15);
+  --color-border-light: rgba(0, 0, 0, 0.08);
+
+  --color-accent-orange: #EA523F;
+  --color-accent-green: #607C64;
+  --color-accent-blue: #3A7CA5;
+  --color-wire: #4A4A4A;
+
+  --color-toolbar-bg: #f7f7f7;
+  --color-toolbar-divider: rgba(0, 0, 0, 0.10);
+  --color-chip-active: #e9ecef;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --radius-default: 6px;
+  --radius-sm: 4px;
+
+  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-knob: 0 2px 4px rgba(0, 0, 0, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+/* === Base Resets === */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  overflow: hidden;
+  user-select: none;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === React Flow Overrides (Rams) === */
+
+.react-flow__node {
+  box-shadow: none !important;
+}
+
+.react-flow__node.selected {
+  outline: 2px solid var(--color-accent-orange);
+  outline-offset: 2px;
+  border-radius: var(--radius-default);
+}
+
+.react-flow__handle {
+  z-index: 10;
+}
+
+.react-flow__edge-interaction {
+  stroke-width: 12px;
+}
+
+.react-flow__minimap {
+  bottom: 12px !important;
+  left: 12px !important;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+.react-flow__connection-line {
+  stroke: var(--color-accent-orange);
+  stroke-width: 2px;
+  stroke-dasharray: 5 5;
+}
+
+/* === Knob Specific === */
+
+.cursor-ns-resize {
+  touch-action: none;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

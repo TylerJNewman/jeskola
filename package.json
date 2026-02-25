@@ -27,8 +27,26 @@
     "test:regression": "bash -lc '(npm run -s dev >/tmp/jeskola-dev.log 2>&1 &) ; DEV_PID=$!; trap \"kill $DEV_PID 2>/dev/null || true\" EXIT; sleep 2; npm run -s test:preset-integrity && node test_toolbar_layout.js && node test_distortion_preset.js && node test_composed_preset_load.js && node test_stacked_builder.js && node test_stack_preset_load.js && node test_recipe_load.js && node test_apply_add_chain.js && node test_apply_add_modulation.js && node test_apply_add_send.js && node test_apply_preview_summary.js && node test_keyboard_trigger_basic.js && node test_keyboard_mono_priority.js && node test_keyboard_focus_guard.js && node test_keyboard_blur_cleanup.js && node test_rapid_import_switch.js && node test_duplicate_id_import.js'"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
     "puppeteer": "^24.37.5",
+    "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.10.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.575.0",
+    "radix-ui": "^1.4.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-hotkeys-hook": "^4.6.2",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "zustand": "^5.0.11"
   }
 }
