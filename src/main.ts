@@ -8,6 +8,7 @@ import { MasterNode } from './audio/nodes/MasterNode';
 import { ModularNode } from './audio/nodes/ModularNode';
 import { Workspace } from './ui/Workspace';
 import { Knob } from './ui/Knob';
+import { PRESETS } from './presets';
 
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('btn-master-play') as HTMLButtonElement;
@@ -128,9 +129,41 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFileBtn.click();
   });
 
+  const presetSelect = document.createElement('select');
+  presetSelect.className = 'select-preset';
+  presetSelect.style.marginRight = '8px';
+  presetSelect.style.padding = '4px';
+  presetSelect.style.backgroundColor = 'var(--panel-bg)';
+  presetSelect.style.color = 'var(--text-light)';
+  presetSelect.style.border = '1px solid var(--border-color)';
+  presetSelect.innerHTML = `
+    <option value="">Select a Preset...</option>
+    <option value="sub-bass">Sub Bass (Detuned + Filter)</option>
+    <option value="ethereal-drone">Ethereal Drone (Perfect 5th + Delay)</option>
+    <option value="sci-fi-fm">Sci-Fi FM Laser (CV Pitch Mod)</option>
+  `;
+
+  const loadPresetBtn = document.createElement('button');
+  loadPresetBtn.className = 'control-btn';
+  loadPresetBtn.innerHTML = '<span>LOAD PRESET</span>';
+  loadPresetBtn.style.marginRight = '8px';
+  loadPresetBtn.addEventListener('click', () => {
+    const val = presetSelect.value;
+    if (val && PRESETS[val]) {
+      const ws = getWorkspace();
+      if (ws) {
+        ensureInitialized().then(() => {
+          ws.importState(PRESETS[val]);
+        });
+      }
+    }
+  });
+
   // Prepend buttons to controls area
   const controlsDiv = document.querySelector('.controls');
   if (controlsDiv) {
+    controlsDiv.insertBefore(presetSelect, startBtn);
+    controlsDiv.insertBefore(loadPresetBtn, startBtn);
     controlsDiv.insertBefore(saveBtn, startBtn);
     controlsDiv.insertBefore(loadBtn, startBtn);
     controlsDiv.appendChild(loadFileBtn);
