@@ -1,15 +1,10 @@
 import { ModularNode } from './ModularNode';
 import { audioEngine } from '../AudioEngine';
-import { createSmoothCV } from '../AudioUtils';
-import type { SmoothCV } from '../AudioUtils';
 
 export class FilterModule extends ModularNode {
   private filter: BiquadFilterNode;
   private cutoffMod: GainNode;
   private resMod: GainNode;
-  
-  private smoothCutoff: SmoothCV;
-  private smoothRes: SmoothCV;
 
   constructor() {
     super('Filter');
@@ -17,18 +12,9 @@ export class FilterModule extends ModularNode {
     
     this.filter = ctx.createBiquadFilter();
     this.filter.type = 'lowpass';
+    this.filter.frequency.value = 1000;
+    this.filter.Q.value = 1;
     
-    // Base values are 0 because the SmoothCV will drive them entirely
-    this.filter.frequency.value = 0;
-    this.filter.Q.value = 0;
-    
-    // Setup SmoothCV slew limiters (15Hz organic glide)
-    this.smoothCutoff = createSmoothCV(1000, 15);
-    this.smoothCutoff.node.connect(this.filter.frequency);
-    
-    this.smoothRes = createSmoothCV(1, 15);
-    this.smoothRes.node.connect(this.filter.Q);
-
     this.inputNode = this.filter;
     this.outputNode = this.filter;
     
@@ -47,11 +33,13 @@ export class FilterModule extends ModularNode {
   }
 
   public setFrequency(val: number): void {
-    this.smoothCutoff.setValue(val);
+    const ctx = audioEngine.getContext();
+    this.filter.frequency.setTargetAtTime(val, ctx.currentTime, 0.05);
   }
 
   public setResonance(val: number): void {
-    this.smoothRes.setValue(val);
+    const ctx = audioEngine.getContext();
+    this.filter.Q.setTargetAtTime(val, ctx.currentTime, 0.05);
   }
 
   public setType(type: BiquadFilterType): void {
@@ -59,8 +47,6 @@ export class FilterModule extends ModularNode {
   }
   
   public override destroy(): void {
-    this.smoothCutoff.destroy();
-    this.smoothRes.destroy();
     this.cutoffMod.disconnect();
     this.resMod.disconnect();
     this.filter.disconnect();

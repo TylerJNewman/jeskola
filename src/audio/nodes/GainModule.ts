@@ -1,21 +1,15 @@
 import { ModularNode } from './ModularNode';
 import { audioEngine } from '../AudioEngine';
-import { createSmoothCV } from '../AudioUtils';
-import type { SmoothCV } from '../AudioUtils';
 
 export class GainModule extends ModularNode {
   private gain: GainNode;
-  private smoothLevel: SmoothCV;
 
   constructor() {
     super('Gain');
     const ctx = audioEngine.getContext();
     
     this.gain = ctx.createGain();
-    this.gain.gain.value = 0; // Driven by smoothCV completely
-    
-    this.smoothLevel = createSmoothCV(0.5, 15);
-    this.smoothLevel.node.connect(this.gain.gain);
+    this.gain.gain.value = 0.5;
     
     this.inputNode = this.gain;
     this.outputNode = this.gain;
@@ -24,11 +18,11 @@ export class GainModule extends ModularNode {
   }
 
   public setGain(val: number): void {
-    this.smoothLevel.setValue(val);
+    const ctx = audioEngine.getContext();
+    this.gain.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
   }
 
   public override destroy(): void {
-    this.smoothLevel.destroy();
     this.gain.disconnect();
     super.destroy();
   }
