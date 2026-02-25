@@ -62,6 +62,18 @@ export const PRESETS: Record<string, string> = {
       { sourceModuleId: "acid-gain", targetModuleId: "master", sourcePortId: "audio", targetPortId: "audio" }
     ]
   }),
+  "acid-drive": JSON.stringify({
+    modules: [
+      { id: "drive-osc", type: "oscillator", x: 100, y: 140, state: { octave: -1, semitone: 0, cents: 0, mode: 'pitch', type: 'sawtooth', freqLog: false } },
+      { id: "drive-dist", type: "distortion", x: 370, y: 140, state: { drive: 5.5, mix: 0.75, output: 0.8, driveLog: true } },
+      { id: "drive-filter", type: "filter", x: 650, y: 140, state: { cutoff: 650, res: 8, type: 'lowpass', cutoffLog: true } }
+    ],
+    connections: [
+      { sourceModuleId: "drive-osc", targetModuleId: "drive-dist", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "drive-dist", targetModuleId: "drive-filter", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "drive-filter", targetModuleId: "master", sourcePortId: "audio", targetPortId: "audio" }
+    ]
+  }),
   "ambient-pad": JSON.stringify({
     modules: [
       { id: "pad-osc1", type: "oscillator", x: 100, y: 100, state: { octave: 0, semitone: 0, cents: 0, mode: 'pitch', type: 'sine', freqLog: false } },

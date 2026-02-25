@@ -14,6 +14,7 @@ vm.runInContext(transformed, context);
 
 const presets = context.globalThis.PRESETS;
 assert.ok(presets && typeof presets === 'object', 'PRESETS must be an object');
+assert.ok(presets['acid-drive'], 'acid-drive preset must exist');
 
 for (const [name, presetJson] of Object.entries(presets)) {
   const parsed = JSON.parse(presetJson);

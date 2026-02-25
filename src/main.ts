@@ -3,6 +3,7 @@ import { audioEngine } from './audio/AudioEngine';
 import { OscillatorModule } from './audio/nodes/OscillatorModule';
 import { FilterModule } from './audio/nodes/FilterModule';
 import { DelayModule } from './audio/nodes/DelayModule';
+import { DistortionModule } from './audio/nodes/DistortionModule';
 import { GainModule } from './audio/nodes/GainModule';
 import { AdsrModule } from './audio/nodes/AdsrModule';
 import { LfoModule } from './audio/nodes/LfoModule';
@@ -145,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <option value="sci-fi-fm">Sci-Fi FM Laser (CV Pitch Mod)</option>
     <option value="classic-pluck">Classic Pluck (ADSR + VCA)</option>
     <option value="acid-bass-sweep">Acid Bass Sweep (ADSR + VCF)</option>
+    <option value="acid-drive">Acid Drive (Dist + VCF)</option>
     <option value="ambient-pad">Ambient Pad (ADSR + Synth)</option>
     <option value="wobble-bass">Wobble Bass (LFO + VCF)</option>
   `;
@@ -326,9 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
           osc.setFreq(osc.state.freq);
           osc.setMode(osc.state.mode);
           setUIMode(osc.state.mode);
-          
+
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
           sel.value = osc.state.type;
+          osc.setType(osc.state.type as OscillatorType);
           sel.addEventListener('change', () => {
             osc.setType(sel.value as OscillatorType);
             osc.state.type = sel.value;
@@ -385,8 +388,12 @@ document.addEventListener('DOMContentLoaded', () => {
             filt.state.res = val;
           }, false, false, undefined, undefined, 1);
 
+          filt.setFrequency(filt.state.cutoff);
+          filt.setResonance(filt.state.res);
+
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
           sel.value = filt.state.type;
+          filt.setType(filt.state.type as BiquadFilterType);
           sel.addEventListener('change', () => {
             filt.setType(sel.value as BiquadFilterType);
             filt.state.type = sel.value;
@@ -436,6 +443,10 @@ document.addEventListener('DOMContentLoaded', () => {
             del.setMix(val);
             del.state.mix = val;
           }, false, false, undefined, undefined, 0.5);
+
+          del.setTime(del.state.time);
+          del.setFeedback(del.state.feedback);
+          del.setMix(del.state.mix);
         };
         break;
 
@@ -461,6 +472,60 @@ document.addEventListener('DOMContentLoaded', () => {
             gn.setGain(val);
             gn.state.level = val;
           }, false, false, undefined, undefined, 0.5);
+
+          gn.setGain(gn.state.level);
+        };
+        break;
+
+      case 'distortion':
+        audioNode = new DistortionModule();
+        title = 'Distortion';
+        bodyHTML = `
+          <div class="ports">
+            <div class="port-container"><div class="port input" data-port-id="audio"></div><span class="label">IN</span></div>
+            <div class="port-container"><span class="label">OUT</span><div class="port output" data-port-id="audio"></div></div>
+          </div>
+          <div class="ports" style="justify-content: center; margin-bottom: 8px; gap: 8px;">
+            <div class="port-container" style="align-items:center;">
+              <div class="port input cv" data-port-id="drive"></div>
+            </div>
+            <div class="port-container" style="align-items:center;">
+              <div class="port input cv" data-port-id="mix"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 12px; justify-content: center;">
+            <div class="control-group drive-group"></div>
+            <div class="control-group mix-group"></div>
+            <div class="control-group out-group"></div>
+          </div>
+        `;
+        moduleSetup = (container) => {
+          const dist = audioNode as DistortionModule;
+          if (state) dist.state = { ...state };
+          else dist.state = { drive: 1.0, mix: 0.5, output: 0.8 };
+
+          if (dist.state.drive === undefined) dist.state.drive = 1.0;
+          if (dist.state.mix === undefined) dist.state.mix = 0.5;
+          if (dist.state.output === undefined) dist.state.output = 0.8;
+
+          new Knob(container.querySelector('.drive-group') as HTMLElement, 'DRIVE', 0.5, 20.0, dist.state.drive, (val) => {
+            dist.setDrive(val);
+            dist.state.drive = val;
+          }, true, !!dist.state.driveLog, (isLog) => {
+            dist.state.driveLog = isLog;
+          }, undefined, 1.0);
+          new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, dist.state.mix, (val) => {
+            dist.setMix(val);
+            dist.state.mix = val;
+          }, false, false, undefined, undefined, 0.5);
+          new Knob(container.querySelector('.out-group') as HTMLElement, 'OUTPUT', 0.0, 2.0, dist.state.output, (val) => {
+            dist.setOutput(val);
+            dist.state.output = val;
+          }, false, false, undefined, undefined, 0.8);
+
+          dist.setDrive(dist.state.drive);
+          dist.setMix(dist.state.mix);
+          dist.setOutput(dist.state.output);
         };
         break;
 
@@ -582,13 +647,17 @@ document.addEventListener('DOMContentLoaded', () => {
             lfo.state.depth = val;
           }, false, false, undefined, undefined, 0.5);
 
+          lfo.setRate(lfo.state.rate);
+          lfo.setDepth(lfo.state.depth);
+
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
           sel.value = lfo.state.type;
+          lfo.setType(lfo.state.type as OscillatorType);
           sel.addEventListener('change', () => {
             lfo.setType(sel.value as OscillatorType);
             lfo.state.type = sel.value;
           });
-          
+
           lfo.start();
         };
         break;
