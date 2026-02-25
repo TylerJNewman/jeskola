@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "basic-memory": {
+            "command": "/Users/tyler/.local/bin/bm",
+            "args": [
+              "mcp",
+              "--project",
+              "jeskola"
+            ]
+          }
+    }
+  }
