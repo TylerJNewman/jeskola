@@ -478,26 +478,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <button class="gate-btn control-btn primary" style="width: 100%; margin-top: 8px; justify-content: center; font-size: 10px;">GATE (HOLD)</button>
 
           <div style="display: flex; gap: 8px; justify-content: space-between; margin-top: 8px;">
-            <div class="control-group">
-              <span class="label">A</span>
-              <div class="knob-container a-knob"></div>
-              <span class="label val-display">0.10s</span>
-            </div>
-            <div class="control-group">
-              <span class="label">D</span>
-              <div class="knob-container d-knob"></div>
-              <span class="label val-display">0.20s</span>
-            </div>
-            <div class="control-group">
-              <span class="label">S</span>
-              <div class="knob-container s-knob"></div>
-              <span class="label val-display">0.50</span>
-            </div>
-            <div class="control-group">
-              <span class="label">R</span>
-              <div class="knob-container r-knob"></div>
-              <span class="label val-display">0.50s</span>
-            </div>
+            <div class="control-group a-group"></div>
+            <div class="control-group d-group"></div>
+            <div class="control-group s-group"></div>
+            <div class="control-group r-group"></div>
           </div>
         `;
 
@@ -506,32 +490,28 @@ document.addEventListener('DOMContentLoaded', () => {
           if (state) adsr.state = { ...state };
           else adsr.state = { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.5 };
 
-          const aCg = container.querySelector('.a-knob') as HTMLElement;
+          const aCg = container.querySelector('.a-group') as HTMLElement;
           new Knob(aCg, 'A', 0.01, 5.0, adsr.state.attack, (val) => {
             adsr.setAttack(val);
             adsr.state.attack = val;
-            (aCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2) + 's';
           }, false, false, undefined, undefined, 0.1);
           
-          const dCg = container.querySelector('.d-knob') as HTMLElement;
+          const dCg = container.querySelector('.d-group') as HTMLElement;
           new Knob(dCg, 'D', 0.01, 5.0, adsr.state.decay, (val) => {
             adsr.setDecay(val);
             adsr.state.decay = val;
-            (dCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2) + 's';
           }, false, false, undefined, undefined, 0.2);
 
-          const sCg = container.querySelector('.s-knob') as HTMLElement;
+          const sCg = container.querySelector('.s-group') as HTMLElement;
           new Knob(sCg, 'S', 0.0, 1.0, adsr.state.sustain, (val) => {
             adsr.setSustain(val);
             adsr.state.sustain = val;
-            (sCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2);
           }, false, false, undefined, undefined, 0.5);
 
-          const rCg = container.querySelector('.r-knob') as HTMLElement;
+          const rCg = container.querySelector('.r-group') as HTMLElement;
           new Knob(rCg, 'R', 0.01, 5.0, adsr.state.release, (val) => {
             adsr.setRelease(val);
             adsr.state.release = val;
-            (rCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2) + 's';
           }, false, false, undefined, undefined, 0.5);
 
           // Gate Button Logic
