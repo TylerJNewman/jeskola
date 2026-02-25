@@ -10,6 +10,9 @@ export class OscillatorModule extends ModularNode {
   private octave: number = 0;
   private semitone: number = 0;
   private cents: number = 0;
+  
+  private rawFreq: number = 440;
+  private currentMode: 'pitch' | 'freq' = 'pitch';
 
   constructor() {
     super('Oscillator');
@@ -43,11 +46,24 @@ export class OscillatorModule extends ModularNode {
 
   private calculateFrequency() {
     const ctx = audioEngine.getContext();
-    const finalFreq = this.baseFreq * Math.pow(2, this.octave) * Math.pow(2, this.semitone / 12);
-    // Smooth glide to new frequency
-    this.osc.frequency.setTargetAtTime(finalFreq, ctx.currentTime, 0.05);
-    // Smooth glide to new fine tune
-    this.osc.detune.setTargetAtTime(this.cents, ctx.currentTime, 0.05);
+    if (this.currentMode === 'pitch') {
+      const finalFreq = this.baseFreq * Math.pow(2, this.octave) * Math.pow(2, this.semitone / 12);
+      this.osc.frequency.setTargetAtTime(finalFreq, ctx.currentTime, 0.05);
+      this.osc.detune.setTargetAtTime(this.cents, ctx.currentTime, 0.05);
+    } else {
+      this.osc.frequency.setTargetAtTime(this.rawFreq, ctx.currentTime, 0.05);
+      this.osc.detune.setTargetAtTime(0, ctx.currentTime, 0.05);
+    }
+  }
+
+  public setMode(mode: 'pitch' | 'freq'): void {
+    this.currentMode = mode;
+    this.calculateFrequency();
+  }
+
+  public setFreq(val: number): void {
+    this.rawFreq = val;
+    this.calculateFrequency();
   }
 
   public setOctave(val: number): void {

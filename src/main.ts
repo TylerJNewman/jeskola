@@ -190,10 +190,19 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="port output" data-port-id="audio"></div>
             </div>
           </div>
-          <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
+          <div class="osc-mode-toggle" style="display:flex; justify-content:center; margin-bottom: 8px;">
+            <div class="mini-segment" style="width: 100px;">
+              <span class="segment active" data-mode="pitch">PITCH</span>
+              <span class="segment" data-mode="freq">FREQ</span>
+            </div>
+          </div>
+          <div class="pitch-container" style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
             <div class="control-group oct-group"></div>
             <div class="control-group coarse-group"></div>
             <div class="control-group fine-group"></div>
+          </div>
+          <div class="freq-container" style="display: none; justify-content: center; margin-bottom: 8px;">
+            <div class="control-group freq-group"></div>
           </div>
           <div class="select-container">
             <select class="type-sel">
@@ -207,37 +216,77 @@ document.addEventListener('DOMContentLoaded', () => {
         moduleSetup = (container) => {
           const osc = audioNode as OscillatorModule;
           if (state) osc.state = { ...state };
-          else osc.state = { octave: 0, semitone: 0, cents: 0, type: 'sine' };
+          else osc.state = { octave: 0, semitone: 0, cents: 0, freq: 440, type: 'sine', mode: 'pitch' };
 
           // Handle legacy state patches that might only have "freq" instead of the new tuning arrays
-          if (osc.state.octave === undefined) {
-             osc.state.octave = 0;
-             osc.state.semitone = 0;
-             osc.state.cents = 0;
-          }
+          if (osc.state.octave === undefined) osc.state.octave = 0;
+          if (osc.state.semitone === undefined) osc.state.semitone = 0;
+          if (osc.state.cents === undefined) osc.state.cents = 0;
+          if (osc.state.freq === undefined) osc.state.freq = 440;
+          if (osc.state.mode === undefined) osc.state.mode = 'pitch';
 
+          const pitchContainer = container.querySelector('.pitch-container') as HTMLElement;
+          const freqContainer = container.querySelector('.freq-container') as HTMLElement;
+          
           const octCg = container.querySelector('.oct-group') as HTMLElement;
           new Knob(octCg, 'OCT', -3, 3, osc.state.octave, (val) => {
             osc.setOctave(val);
             osc.state.octave = val;
-          }, false, false, undefined, 1);
+          }, false, false, undefined, 1, 0);
           
           const coarseCg = container.querySelector('.coarse-group') as HTMLElement;
           new Knob(coarseCg, 'COARSE', -12, 12, osc.state.semitone, (val) => {
             osc.setSemitone(val);
             osc.state.semitone = val;
-          }, false, false, undefined, 1);
+          }, false, false, undefined, 1, 0);
           
           const fineCg = container.querySelector('.fine-group') as HTMLElement;
           new Knob(fineCg, 'FINE', -100, 100, osc.state.cents, (val) => {
             osc.setCents(val);
             osc.state.cents = val;
+          }, false, false, undefined, undefined, 0);
+
+          const freqCg = container.querySelector('.freq-group') as HTMLElement;
+          new Knob(freqCg, 'FREQ', 0.1, 2000, osc.state.freq, (val) => {
+            osc.setFreq(val);
+            osc.state.freq = val;
+          }, true, !!osc.state.freqLog, (isLog) => {
+            osc.state.freqLog = isLog;
+          }, undefined, 440);
+
+          // Mode Toggle UI
+          const modeToggle = container.querySelector('.osc-mode-toggle .mini-segment') as HTMLElement;
+          const setUIMode = (mode: 'pitch' | 'freq') => {
+            const pSeg = modeToggle.querySelector('[data-mode="pitch"]')!;
+            const fSeg = modeToggle.querySelector('[data-mode="freq"]')!;
+            if (mode === 'pitch') {
+              pSeg.classList.add('active'); fSeg.classList.remove('active');
+              pitchContainer.style.display = 'flex';
+              freqContainer.style.display = 'none';
+            } else {
+              fSeg.classList.add('active'); pSeg.classList.remove('active');
+              pitchContainer.style.display = 'none';
+              freqContainer.style.display = 'flex';
+            }
+          };
+
+          modeToggle.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target.classList.contains('segment')) {
+              const newMode = target.getAttribute('data-mode') as 'pitch' | 'freq';
+              osc.setMode(newMode);
+              osc.state.mode = newMode;
+              setUIMode(newMode);
+            }
           });
           
           // Initial push to engine
           osc.setOctave(osc.state.octave);
           osc.setSemitone(osc.state.semitone);
           osc.setCents(osc.state.cents);
+          osc.setFreq(osc.state.freq);
+          osc.setMode(osc.state.mode);
+          setUIMode(osc.state.mode);
           
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
           sel.value = osc.state.type;
@@ -289,13 +338,13 @@ document.addEventListener('DOMContentLoaded', () => {
             filt.state.cutoff = val;
           }, true, !!filt.state.cutoffLog, (isLog) => {
             filt.state.cutoffLog = isLog;
-          });
+          }, undefined, 1000);
           
           const resCg = container.querySelector('.res-group') as HTMLElement;
           new Knob(resCg, 'RES', 0, 20, filt.state.res, (val) => {
             filt.setResonance(val);
             filt.state.res = val;
-          });
+          }, false, false, undefined, undefined, 1);
 
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
           sel.value = filt.state.type;
@@ -339,15 +388,15 @@ document.addEventListener('DOMContentLoaded', () => {
           new Knob(container.querySelector('.time-group') as HTMLElement, 'TIME', 0.0, 2.0, del.state.time, (val) => {
             del.setTime(val);
             del.state.time = val;
-          });
+          }, false, false, undefined, undefined, 0.4);
           new Knob(container.querySelector('.fb-group') as HTMLElement, 'FEEDBACK', 0.0, 1.0, del.state.feedback, (val) => {
             del.setFeedback(val);
             del.state.feedback = val;
-          });
+          }, false, false, undefined, undefined, 0.4);
           new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, del.state.mix, (val) => {
             del.setMix(val);
             del.state.mix = val;
-          });
+          }, false, false, undefined, undefined, 0.5);
         };
         break;
 
@@ -372,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
           new Knob(container.querySelector('.control-group') as HTMLElement, 'LEVEL', 0.0, 2.0, gn.state.level, (val) => {
             gn.setGain(val);
             gn.state.level = val;
-          });
+          }, false, false, undefined, undefined, 0.5);
         };
         break;
 

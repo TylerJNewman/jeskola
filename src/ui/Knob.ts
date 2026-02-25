@@ -6,6 +6,7 @@ export class Knob {
   private min: number;
   private max: number;
   private currentValue: number;
+  private defaultValue: number;
   private onChange: (val: number) => void;
 
   private isDragging = false;
@@ -29,7 +30,8 @@ export class Knob {
     logCapable: boolean = false,
     initialLogMode: boolean = false,
     onModeChange?: (isLog: boolean) => void,
-    step?: number
+    step?: number,
+    defaultValue?: number
   ) {
     this.container = container;
     this.min = min;
@@ -40,6 +42,7 @@ export class Knob {
     this.isLogMode = initialLogMode;
     this.onModeChange = onModeChange;
     this.step = step;
+    this.defaultValue = defaultValue !== undefined ? defaultValue : initialValue;
     
     // Calculate initial linear position based on initialValue and mode
     if (this.isLogMode) {
@@ -154,6 +157,15 @@ export class Knob {
       e.stopPropagation();
       handleStart(e.touches[0].clientY);
     }, { passive: false });
+
+    // Double-click to reset
+    knobContainer.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      this.currentValue = this.defaultValue;
+      this.currentLinearPosition = this.calculateLinearFromValue(this.defaultValue);
+      this.updateVisuals();
+      this.onChange(this.currentValue);
+    });
 
     const handleMove = (clientY: number) => {
       if (this.isDragging) {
