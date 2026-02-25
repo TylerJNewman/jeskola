@@ -145,7 +145,7 @@ h3 {
 .palette {
   position: absolute;
   top: 64px;
-  left: 24px;
+  right: 24px;
   width: 140px;
   background-color: var(--panel-bg);
   border-radius: var(--border-radius);

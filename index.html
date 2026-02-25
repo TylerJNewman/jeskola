@@ -1,50 +1,54 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <title>Minimal Modular Synth</title>
-    <link rel="stylesheet" href="/src/style.css" />
-  </head>
-  <body>
-    <!-- Top Bar -->
-    <header class="top-bar">
-      <div class="logo">
-        <div class="logo-mark"></div>
-        <h1>SYNTHESIS</h1>
-      </div>
-      <div class="controls">
-        <button id="btn-master-play" class="control-btn primary">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-          START AUDIO
-        </button>
-      </div>
-    </header>
 
-    <!-- Main Workspace -->
-    <main class="workspace" id="workspace">
-      <!-- SVG layer for connections -->
-      <svg id="cables-layer" class="cables-layer"></svg>
-      <!-- Modules will be injected here -->
-    </main>
-    
-    <!-- Module Palette/Library -->
-    <aside class="palette">
-      <h2 class="palette-title">MODULES</h2>
-      <div class="palette-items">
-        <button class="add-module-btn" data-type="oscillator">+ OSCILLATOR</button>
-        <button class="add-module-btn" data-type="filter">+ FILTER</button>
-        <button class="add-module-btn" data-type="delay">+ DELAY</button>
-        <button class="add-module-btn" data-type="gain">+ GAIN</button>
-      </div>
-    </aside>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <title>Minimal Modular Synth</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
 
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<body>
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <div class="logo">
+      <div class="logo-mark"></div>
+      <h1>SYNTHESIS</h1>
+    </div>
+    <div class="controls">
+      <button id="btn-master-play" class="control-btn primary">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        START AUDIO
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="workspace" id="workspace">
+    <!-- SVG layer for connections -->
+    <svg id="cables-layer" class="cables-layer"></svg>
+    <!-- Modules will be injected here -->
+  </main>
+
+  <!-- Module Palette/Library -->
+  <aside class="palette">
+    <h2 class="palette-title">MODULES</h2>
+    <div class="palette-items">
+      <button class="add-module-btn" data-type="oscillator">+ OSCILLATOR</button>
+      <button class="add-module-btn" data-type="filter">+ FILTER</button>
+      <button class="add-module-btn" data-type="adsr">+ ADSR</button>
+      <button class="add-module-btn" data-type="delay">+ DELAY</button>
+      <button class="add-module-btn" data-type="gain">+ GAIN</button>
+    </div>
+  </aside>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

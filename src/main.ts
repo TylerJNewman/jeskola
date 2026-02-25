@@ -4,6 +4,7 @@ import { OscillatorModule } from './audio/nodes/OscillatorModule';
 import { FilterModule } from './audio/nodes/FilterModule';
 import { DelayModule } from './audio/nodes/DelayModule';
 import { GainModule } from './audio/nodes/GainModule';
+import { AdsrModule } from './audio/nodes/AdsrModule';
 import { MasterNode } from './audio/nodes/MasterNode';
 import { ModularNode } from './audio/nodes/ModularNode';
 import { Workspace } from './ui/Workspace';
@@ -187,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
     `;
-    ws.addModule(master, el, window.innerWidth - 200, window.innerHeight / 2 - 50);
+    ws.addModule(master, el, window.innerWidth - 250, window.innerHeight - 150);
     window._workspace = ws; // Save to global scope for module creation
   }
 
@@ -200,8 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let bodyHTML = '';
     
     // For manual creation vs loading
-    let x = xPos !== undefined ? xPos : 220 + (moduleCount * 20);
-    let y = yPos !== undefined ? yPos : 100 + (moduleCount * 20);
+    let x = xPos !== undefined ? xPos : 30 + (moduleCount * 20);
+    let y = yPos !== undefined ? yPos : 80 + (moduleCount * 20);
     if (xPos === undefined) moduleCount++;
 
     const el = document.createElement('div');
@@ -455,6 +456,102 @@ document.addEventListener('DOMContentLoaded', () => {
             gn.setGain(val);
             gn.state.level = val;
           }, false, false, undefined, undefined, 0.5);
+        };
+        break;
+
+      case 'adsr':
+        audioNode = new AdsrModule();
+        title = 'ADSR Element';
+        bodyHTML = `
+          <div class="ports">
+            <!-- ADSR has no audio input, only CV output -->
+            <div></div> 
+            <div class="port-container" style="justify-content: flex-end;">
+              <span class="label">OUT</span>
+              <div class="port output cv" data-port-id="audio"></div>
+            </div>
+          </div>
+
+          <button class="gate-btn control-btn primary" style="width: 100%; margin-top: 8px; justify-content: center; font-size: 10px;">GATE (HOLD)</button>
+
+          <div style="display: flex; gap: 8px; justify-content: space-between; margin-top: 8px;">
+            <div class="control-group">
+              <span class="label">A</span>
+              <div class="knob-container a-knob"></div>
+              <span class="label val-display">0.10s</span>
+            </div>
+            <div class="control-group">
+              <span class="label">D</span>
+              <div class="knob-container d-knob"></div>
+              <span class="label val-display">0.20s</span>
+            </div>
+            <div class="control-group">
+              <span class="label">S</span>
+              <div class="knob-container s-knob"></div>
+              <span class="label val-display">0.50</span>
+            </div>
+            <div class="control-group">
+              <span class="label">R</span>
+              <div class="knob-container r-knob"></div>
+              <span class="label val-display">0.50s</span>
+            </div>
+          </div>
+        `;
+
+        moduleSetup = (container) => {
+          const adsr = audioNode as AdsrModule;
+          if (state) adsr.state = { ...state };
+          else adsr.state = { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.5 };
+
+          const aCg = container.querySelector('.a-knob') as HTMLElement;
+          new Knob(aCg, 'A', 0.01, 5.0, adsr.state.attack, (val) => {
+            adsr.setAttack(val);
+            adsr.state.attack = val;
+            (aCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2) + 's';
+          }, false, false, undefined, undefined, 0.1);
+          
+          const dCg = container.querySelector('.d-knob') as HTMLElement;
+          new Knob(dCg, 'D', 0.01, 5.0, adsr.state.decay, (val) => {
+            adsr.setDecay(val);
+            adsr.state.decay = val;
+            (dCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2) + 's';
+          }, false, false, undefined, undefined, 0.2);
+
+          const sCg = container.querySelector('.s-knob') as HTMLElement;
+          new Knob(sCg, 'S', 0.0, 1.0, adsr.state.sustain, (val) => {
+            adsr.setSustain(val);
+            adsr.state.sustain = val;
+            (sCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2);
+          }, false, false, undefined, undefined, 0.5);
+
+          const rCg = container.querySelector('.r-knob') as HTMLElement;
+          new Knob(rCg, 'R', 0.01, 5.0, adsr.state.release, (val) => {
+            adsr.setRelease(val);
+            adsr.state.release = val;
+            (rCg.nextElementSibling as HTMLElement).innerText = val.toFixed(2) + 's';
+          }, false, false, undefined, undefined, 0.5);
+
+          // Gate Button Logic
+          const gateBtn = container.querySelector('.gate-btn') as HTMLElement;
+          
+          const handleAttack = () => {
+            gateBtn.classList.add('active');
+            adsr.triggerAttack();
+          };
+          
+          const handleRelease = () => {
+            gateBtn.classList.remove('active');
+            adsr.triggerRelease();
+          };
+          
+          gateBtn.addEventListener('mousedown', handleAttack);
+          gateBtn.addEventListener('mouseup', handleRelease);
+          gateBtn.addEventListener('mouseleave', handleRelease);
+
+          adsr.setAttack(adsr.state.attack);
+          adsr.setDecay(adsr.state.decay);
+          adsr.setSustain(adsr.state.sustain);
+          adsr.setRelease(adsr.state.release);
         };
         break;
 
