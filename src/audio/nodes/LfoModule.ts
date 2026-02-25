@@ -36,12 +36,18 @@ export class LfoModule extends ModularNode {
 
   public setRate(val: number): void {
     const ctx = audioEngine.getContext();
-    this.oscillator.frequency.setTargetAtTime(val, ctx.currentTime, 0.05);
+    const now = ctx.currentTime;
+    this.oscillator.frequency.cancelScheduledValues(now);
+    this.oscillator.frequency.setValueAtTime(this.oscillator.frequency.value, now);
+    this.oscillator.frequency.setTargetAtTime(val, now, 0.05);
   }
 
   public setDepth(val: number): void {
     const ctx = audioEngine.getContext();
-    this.depthGain.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
+    const now = ctx.currentTime;
+    this.depthGain.gain.cancelScheduledValues(now);
+    this.depthGain.gain.setValueAtTime(this.depthGain.gain.value, now);
+    this.depthGain.gain.setTargetAtTime(val, now, 0.05);
   }
 
   public setType(type: OscillatorType): void {

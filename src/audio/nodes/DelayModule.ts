@@ -53,19 +53,32 @@ export class DelayModule extends ModularNode {
 
   public setTime(val: number): void {
     const ctx = audioEngine.getContext();
-    this.delay.delayTime.setTargetAtTime(val, ctx.currentTime, 0.05);
+    const now = ctx.currentTime;
+    this.delay.delayTime.cancelScheduledValues(now);
+    this.delay.delayTime.setValueAtTime(this.delay.delayTime.value, now);
+    this.delay.delayTime.setTargetAtTime(val, now, 0.05);
   }
 
   public setFeedback(val: number): void {
     const ctx = audioEngine.getContext();
-    this.feedback.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
+    const now = ctx.currentTime;
+    this.feedback.gain.cancelScheduledValues(now);
+    this.feedback.gain.setValueAtTime(this.feedback.gain.value, now);
+    this.feedback.gain.setTargetAtTime(val, now, 0.05);
   }
 
   public setMix(val: number): void {
     const ctx = audioEngine.getContext();
-    this.mix.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
+    const now = ctx.currentTime;
+    
+    this.mix.gain.cancelScheduledValues(now);
+    this.mix.gain.setValueAtTime(this.mix.gain.value, now);
+    this.mix.gain.setTargetAtTime(val, now, 0.05);
+    
     // Inverse relationship for dry signal to maintain volume roughly
-    this.dry.gain.setTargetAtTime(1 - val, ctx.currentTime, 0.05);
+    this.dry.gain.cancelScheduledValues(now);
+    this.dry.gain.setValueAtTime(this.dry.gain.value, now);
+    this.dry.gain.setTargetAtTime(1 - val, now, 0.05);
   }
 
   public override destroy(): void {

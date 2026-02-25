@@ -19,7 +19,10 @@ export class GainModule extends ModularNode {
 
   public setGain(val: number): void {
     const ctx = audioEngine.getContext();
-    this.gain.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
+    const now = ctx.currentTime;
+    this.gain.gain.cancelScheduledValues(now);
+    this.gain.gain.setValueAtTime(this.gain.gain.value, now);
+    this.gain.gain.setTargetAtTime(val, now, 0.05);
   }
 
   public override destroy(): void {

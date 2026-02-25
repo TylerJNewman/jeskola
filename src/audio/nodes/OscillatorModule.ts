@@ -46,13 +46,22 @@ export class OscillatorModule extends ModularNode {
 
   private calculateFrequency() {
     const ctx = audioEngine.getContext();
+    const now = ctx.currentTime;
+    
+    // Smooth transition
+    this.osc.frequency.cancelScheduledValues(now);
+    this.osc.frequency.setValueAtTime(this.osc.frequency.value, now);
+    
+    this.osc.detune.cancelScheduledValues(now);
+    this.osc.detune.setValueAtTime(this.osc.detune.value, now);
+
     if (this.currentMode === 'pitch') {
       const finalFreq = this.baseFreq * Math.pow(2, this.octave) * Math.pow(2, this.semitone / 12);
-      this.osc.frequency.setTargetAtTime(finalFreq, ctx.currentTime, 0.05);
-      this.osc.detune.setTargetAtTime(this.cents, ctx.currentTime, 0.05);
+      this.osc.frequency.setTargetAtTime(finalFreq, now, 0.05);
+      this.osc.detune.setTargetAtTime(this.cents, now, 0.05);
     } else {
-      this.osc.frequency.setTargetAtTime(this.rawFreq, ctx.currentTime, 0.05);
-      this.osc.detune.setTargetAtTime(0, ctx.currentTime, 0.05);
+      this.osc.frequency.setTargetAtTime(this.rawFreq, now, 0.05);
+      this.osc.detune.setTargetAtTime(0, now, 0.05);
     }
   }
 
