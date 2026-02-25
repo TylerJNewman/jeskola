@@ -34,6 +34,12 @@ export abstract class ModularNode {
 
   public set state(value: Record<string, any>) {
     this._state = value ?? {};
+    this.pushStateToAudio();
+  }
+
+  /** Sync _state values to actual AudioParams. Override in subclasses. */
+  public pushStateToAudio(): void {
+    // Base: no-op. Subclasses override to push _state into their AudioParams.
   }
 
   /**

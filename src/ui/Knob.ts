@@ -40,21 +40,22 @@ export class Knob {
     this.container = container;
     this.min = min;
     this.max = max;
-    this.currentValue = initialValue;
+    this.currentValue = Number.isFinite(initialValue) ? initialValue : min;
     this.onChange = onChange;
     this.logCapable = logCapable;
     this.isLogMode = initialLogMode;
     this.onModeChange = onModeChange;
     this.step = step;
-    this.defaultValue = defaultValue !== undefined ? defaultValue : initialValue;
-    
-    // Calculate initial linear position based on initialValue and mode
+    this.defaultValue = defaultValue !== undefined ? defaultValue : this.currentValue;
+
+    // Calculate initial linear position based on currentValue and mode
+    const safeInitial = this.currentValue;
     if (this.isLogMode) {
       const safeMin = Math.max(0.0001, this.min);
       const safeMax = Math.max(safeMin + 0.0001, this.max);
-      this.currentLinearPosition = (Math.log(initialValue) - Math.log(safeMin)) / (Math.log(safeMax) - Math.log(safeMin));
+      this.currentLinearPosition = (Math.log(safeInitial) - Math.log(safeMin)) / (Math.log(safeMax) - Math.log(safeMin));
     } else {
-      this.currentLinearPosition = (initialValue - min) / (max - min);
+      this.currentLinearPosition = (safeInitial - min) / (max - min);
     }
     this.currentLinearPosition = Math.min(1.0, Math.max(0.0, this.currentLinearPosition));
 
@@ -72,7 +73,7 @@ export class Knob {
         <div class="knob"></div>
       </div>
       <div style="display:flex; align-items:center;">
-        <div class="value-display" style="font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums;">${this.formatValue(initialValue)}</div>
+        <div class="value-display" style="font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums;">${this.formatValue(this.currentValue)}</div>
         ${toggleHtml}
       </div>
     `;
@@ -85,7 +86,7 @@ export class Knob {
   }
 
   private formatValue(val: number): string {
-    // Basic formatting, could be expanded based on parameter type (Hz, ms, etc)
+    if (val == null || !Number.isFinite(val)) return '—';
     if (val >= 100) return Math.round(val).toString();
     if (val >= 10) return val.toFixed(1);
     return val.toFixed(2);

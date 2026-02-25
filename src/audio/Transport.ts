@@ -81,12 +81,12 @@ export class Transport {
     this.stopListeners.delete(cb);
   }
 
-  public play(): void {
+  public async play(): Promise<void> {
     if (this.playing) return;
 
     const ctx = audioEngine.getContext();
     if (ctx.state === 'suspended') {
-      ctx.resume();
+      await ctx.resume();
     }
 
     this.playing = true;

@@ -27,7 +27,7 @@ export class LfoModule extends ModularNode {
     this.inputNode = null; 
     this.outputNode = this.depthGain;
     
-    this.state = {
+    this._state = {
       rate: 1.0,     // Hz
       depth: 0.5,    // 0 to 1
       type: 'sine'
@@ -49,7 +49,23 @@ export class LfoModule extends ModularNode {
   }
 
   public start(): void {
-    this.oscillator.start();
+    try {
+      this.oscillator.start();
+    } catch (e) {
+      // already started
+    }
+  }
+
+  public override pushStateToAudio(): void {
+    const s = this._state;
+    const ctx = audioEngine.getContext();
+    if (typeof s.rate === 'number') {
+      this.oscillator.frequency.setValueAtTime(s.rate, ctx.currentTime);
+    }
+    if (typeof s.depth === 'number') {
+      this.depthGain.gain.setValueAtTime(s.depth, ctx.currentTime);
+    }
+    if (s.type) this.oscillator.type = s.type;
   }
 
   public override destroy(): void {

@@ -17,7 +17,7 @@ export class AdsrModule extends ModularNode {
     this.outputNode = this.cvSource;
     
     // Initial State defaults
-    this.state = {
+    this._state = {
       attack: 0.1,  // seconds
       decay: 0.2,   // seconds
       sustain: 0.5, // 0 to 1
@@ -27,10 +27,10 @@ export class AdsrModule extends ModularNode {
     this.cvSource.start();
   }
 
-  public setAttack(val: number): void { this.state.attack = val; }
-  public setDecay(val: number): void { this.state.decay = val; }
-  public setSustain(val: number): void { this.state.sustain = val; }
-  public setRelease(val: number): void { this.state.release = val; }
+  public setAttack(val: number): void { this._state.attack = val; }
+  public setDecay(val: number): void { this._state.decay = val; }
+  public setSustain(val: number): void { this._state.sustain = val; }
+  public setRelease(val: number): void { this._state.release = val; }
 
   public triggerAttack(): void {
     this.triggerAttackAt(audioEngine.getContext().currentTime);
@@ -52,15 +52,18 @@ export class AdsrModule extends ModularNode {
   }
 
   public triggerReleaseAt(time: number): void {
-    this.cvSource.offset.cancelScheduledValues(time);
-
     try {
       if (typeof this.cvSource.offset.cancelAndHoldAtTime === 'function') {
         this.cvSource.offset.cancelAndHoldAtTime(time);
       } else {
+        this.cvSource.offset.cancelScheduledValues(time);
         this.cvSource.offset.setValueAtTime(this.cvSource.offset.value, time);
       }
-    } catch(e) { /* fallback */ }
+    } catch(e) {
+      // Final fallback: cancel and set current value
+      this.cvSource.offset.cancelScheduledValues(time);
+      this.cvSource.offset.setValueAtTime(this.cvSource.offset.value, time);
+    }
 
     const rTime = Math.max(0.01, this.state.release);
     this.cvSource.offset.setTargetAtTime(0, time, rTime / 3);

@@ -37,6 +37,29 @@ export interface ImportStateResult {
   warnings: string[];
 }
 
+export type ApplyMode = 'replace' | 'add_chain' | 'add_modulation' | 'add_send' | 'add_layer';
+export type ApplyTarget = 'before_module' | 'after_module' | 'parallel_to_module' | 'master_send' | 'auto';
+
+export interface ApplyOptions {
+  mode: ApplyMode;
+  targetType?: ApplyTarget;
+  targetModuleId?: string;
+  safeRename?: boolean;
+  dryRun?: boolean;
+}
+
+export interface ApplySummary {
+  modulesAdded: number;
+  connectionsAdded: number;
+  routesRewired: number;
+  idsRenamed: number;
+  warnings: string[];
+}
+
+export interface ApplyStateResult extends ImportStateResult {
+  summary: ApplySummary;
+}
+
 interface WorkspaceModule {
   audio: ModularNode;
   element: HTMLElement;
@@ -54,6 +77,25 @@ function asString(value: unknown): string | null {
 function asNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
+
+function clonePatchState(state: PatchState): PatchState {
+  return JSON.parse(JSON.stringify(state)) as PatchState;
+}
+
+type PlannedConnection = {
+  sourceModuleId: string;
+  targetModuleId: string;
+  sourcePortId: string;
+  targetPortId: string;
+};
+
+type PlannedApply = {
+  patch: PatchState;
+  warnings: string[];
+  idsRenamed: number;
+  connectionsToRemove: PlannedConnection[];
+  connectionsToAdd: PlannedConnection[];
+};
 
 export class Workspace {
   private container: HTMLElement;
@@ -86,6 +128,25 @@ export class Workspace {
   public hasModule(id: string): boolean {
     if (this.modules.has(id)) return true;
     return !!this.container.querySelector(`.module[data-id="${id}"]`);
+  }
+
+  public listModules(): Array<{ id: string; type: string }> {
+    return Array.from(this.modules.entries())
+      .filter(([id]) => id !== 'master')
+      .map(([id, data]) => ({ id, type: data.audio.type.toLowerCase() }));
+  }
+
+  public getModuleById<T extends ModularNode = ModularNode>(id: string): T | undefined {
+    const module = this.modules.get(id);
+    if (!module) return undefined;
+    return module.audio as T;
+  }
+
+  public getModulesByType<T extends ModularNode = ModularNode>(type: string): T[] {
+    const normalized = type.toLowerCase();
+    return Array.from(this.modules.values())
+      .map((entry) => entry.audio)
+      .filter((audio) => audio.type.toLowerCase() === normalized) as T[];
   }
 
   private initEvents() {
@@ -628,6 +689,379 @@ export class Workspace {
     }
 
     return { state: { modules, connections }, warnings };
+  }
+
+  private remapPatchIdsForCollision(patch: PatchState, safeRename: boolean): { patch: PatchState; idsRenamed: number } {
+    if (!safeRename) return { patch, idsRenamed: 0 };
+
+    const next = clonePatchState(patch);
+    const idMap = new Map<string, string>();
+    const existing = new Set(Array.from(this.modules.keys()));
+    let idsRenamed = 0;
+
+    const makeUnique = (base: string): string => {
+      let index = 1;
+      let candidate = `${base}-${index}`;
+      while (existing.has(candidate)) {
+        index += 1;
+        candidate = `${base}-${index}`;
+      }
+      return candidate;
+    };
+
+    for (const mod of next.modules) {
+      const oldId = mod.id;
+      if (!existing.has(oldId) && !idMap.has(oldId)) {
+        existing.add(oldId);
+        idMap.set(oldId, oldId);
+        continue;
+      }
+
+      const uniqueId = makeUnique(oldId);
+      mod.id = uniqueId;
+      existing.add(uniqueId);
+      idMap.set(oldId, uniqueId);
+      idsRenamed += 1;
+    }
+
+    next.connections = next.connections.map((c) => ({
+      ...c,
+      sourceModuleId: idMap.get(c.sourceModuleId) || c.sourceModuleId,
+      targetModuleId: idMap.get(c.targetModuleId) || c.targetModuleId
+    }));
+
+    return { patch: next, idsRenamed };
+  }
+
+  private findFirstConnection(predicate: (c: UIConnection) => boolean): UIConnection | undefined {
+    return this.connections.find(predicate);
+  }
+
+  private getCvPortIdsForModule(moduleId: string): string[] {
+    const moduleEl = this.container.querySelector(`.module[data-id="${moduleId}"]`);
+    if (!moduleEl) return [];
+    const cvPorts = Array.from(moduleEl.querySelectorAll('.port.input.cv[data-port-id]'));
+    return cvPorts
+      .map((p) => p.getAttribute('data-port-id'))
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
+  }
+
+  private inferEntryModuleId(patch: PatchState): string | null {
+    if (patch.modules.length === 0) return null;
+    const incomingAudio = new Set(
+      patch.connections
+        .filter((c) => c.targetPortId === 'audio' && c.targetModuleId !== 'master')
+        .map((c) => c.targetModuleId)
+    );
+    const entry = patch.modules.find((m) => !incomingAudio.has(m.id));
+    return entry?.id || patch.modules[0].id;
+  }
+
+  private inferExitModuleId(patch: PatchState): string | null {
+    if (patch.modules.length === 0) return null;
+    const toMaster = patch.connections.find((c) => c.targetModuleId === 'master' && c.targetPortId === 'audio');
+    if (toMaster) return toMaster.sourceModuleId;
+
+    const hasOutgoingAudio = new Set(
+      patch.connections
+        .filter((c) => c.sourcePortId === 'audio' && c.targetModuleId !== 'master')
+        .map((c) => c.sourceModuleId)
+    );
+    const exit = patch.modules.find((m) => !hasOutgoingAudio.has(m.id));
+    return exit?.id || patch.modules[patch.modules.length - 1].id;
+  }
+
+  private inferModulationSourceId(patch: PatchState): string | null {
+    const preferred = patch.modules.find((m) =>
+      m.type === 'lfo' || m.type === 'adsr' || m.type === 'sequencer'
+    );
+    if (preferred) return preferred.id;
+    return this.inferEntryModuleId(patch);
+  }
+
+  private buildApplyPlan(patch: PatchState, options: ApplyOptions): PlannedApply {
+    const warnings: string[] = [];
+    const mode: ApplyMode = options.mode || 'replace';
+    const targetType: ApplyTarget = options.targetType || 'auto';
+    const safeRename = options.safeRename !== false;
+
+    const remapped = this.remapPatchIdsForCollision(patch, safeRename);
+    const nextPatch = remapped.patch;
+    const connectionsToRemove: PlannedConnection[] = [];
+    const connectionsToAdd: PlannedConnection[] = [...nextPatch.connections];
+
+    if (mode === 'replace') {
+      return {
+        patch: nextPatch,
+        warnings,
+        idsRenamed: remapped.idsRenamed,
+        connectionsToRemove,
+        connectionsToAdd
+      };
+    }
+
+    const entryId = this.inferEntryModuleId(nextPatch);
+    const exitId = this.inferExitModuleId(nextPatch);
+    const targetModuleId = options.targetModuleId;
+
+    if (!entryId || !exitId) {
+      warnings.push('Incoming patch has no modules to apply.');
+      return {
+        patch: nextPatch,
+        warnings,
+        idsRenamed: remapped.idsRenamed,
+        connectionsToRemove,
+        connectionsToAdd
+      };
+    }
+
+    // Ignore incoming routes to master for additive modes; these are re-attached based on target strategy.
+    const filteredAdds = connectionsToAdd.filter((c) => c.targetModuleId !== 'master');
+    connectionsToAdd.length = 0;
+    connectionsToAdd.push(...filteredAdds);
+
+    const addConnection = (sourceModuleId: string, targetModuleIdValue: string, sourcePortId = 'audio', targetPortId = 'audio') => {
+      connectionsToAdd.push({
+        sourceModuleId,
+        targetModuleId: targetModuleIdValue,
+        sourcePortId,
+        targetPortId
+      });
+    };
+
+    const removeUiConnection = (conn: UIConnection) => {
+      connectionsToRemove.push({
+        sourceModuleId: conn.sourceModuleId,
+        targetModuleId: conn.targetModuleId,
+        sourcePortId: conn.sourcePortId || 'audio',
+        targetPortId: conn.targetPortId || 'audio'
+      });
+    };
+
+    const resolveChainTarget = (): { source?: UIConnection; dest?: UIConnection; targetId?: string } => {
+      if (targetType === 'master_send') return {};
+      if (targetModuleId) {
+        const incoming = this.findFirstConnection((c) =>
+          c.targetModuleId === targetModuleId &&
+          (c.targetPortId || 'audio') === 'audio' &&
+          (c.sourcePortId || 'audio') === 'audio'
+        );
+        const outgoing = this.findFirstConnection((c) =>
+          c.sourceModuleId === targetModuleId &&
+          (c.sourcePortId || 'audio') === 'audio' &&
+          (c.targetPortId || 'audio') === 'audio'
+        );
+        return { source: incoming, dest: outgoing, targetId: targetModuleId };
+      }
+
+      const toMaster = this.findFirstConnection((c) =>
+        c.targetModuleId === 'master' &&
+        (c.targetPortId || 'audio') === 'audio' &&
+        (c.sourcePortId || 'audio') === 'audio'
+      );
+      return { dest: toMaster, targetId: toMaster?.sourceModuleId };
+    };
+
+    if (mode === 'add_chain') {
+      const target = resolveChainTarget();
+
+      if (targetType === 'before_module' && target.source && target.targetId) {
+        removeUiConnection(target.source);
+        addConnection(target.source.sourceModuleId, entryId);
+        addConnection(exitId, target.targetId);
+      } else if ((targetType === 'after_module' || targetType === 'auto') && target.dest) {
+        removeUiConnection(target.dest);
+        addConnection(target.dest.sourceModuleId, entryId);
+        addConnection(exitId, target.dest.targetModuleId);
+      } else if (targetType === 'parallel_to_module' && target.targetId) {
+        addConnection(target.targetId, entryId);
+        addConnection(exitId, 'master');
+      } else if (targetType === 'master_send') {
+        const seed = target.targetId || targetModuleId;
+        if (seed) {
+          addConnection(seed, entryId);
+        }
+        addConnection(exitId, 'master');
+      } else {
+        warnings.push('No valid chain target found; attached chain output to master.');
+        addConnection(exitId, 'master');
+      }
+    } else if (mode === 'add_send') {
+      let sendSourceId = targetModuleId || resolveChainTarget().targetId;
+      if (!sendSourceId) {
+        const toMaster = this.findFirstConnection((c) => c.targetModuleId === 'master');
+        sendSourceId = toMaster?.sourceModuleId;
+      }
+      if (sendSourceId) {
+        addConnection(sendSourceId, entryId);
+      } else {
+        warnings.push('No send source found; send chain will output only.');
+      }
+      addConnection(exitId, 'master');
+    } else if (mode === 'add_layer') {
+      if (targetModuleId && (targetType === 'parallel_to_module' || targetType === 'before_module' || targetType === 'after_module')) {
+        addConnection(targetModuleId, entryId);
+      }
+      addConnection(exitId, 'master');
+    } else if (mode === 'add_modulation') {
+      const modSource = this.inferModulationSourceId(nextPatch);
+      const candidateTargetId = targetModuleId || this.listModules()[0]?.id;
+      if (!modSource || !candidateTargetId) {
+        warnings.push('No modulation source/target available.');
+      } else {
+        const cvPorts = this.getCvPortIdsForModule(candidateTargetId);
+        const preferredOrder = ['cutoff', 'level', 'freq', 'res', 'drive', 'mix', 'time', 'feedback'];
+        const targetPort = preferredOrder.find((p) => cvPorts.includes(p)) || cvPorts[0];
+        if (targetPort) {
+          addConnection(modSource, candidateTargetId, 'audio', targetPort);
+        } else {
+          warnings.push(`Target module "${candidateTargetId}" has no CV input ports.`);
+        }
+      }
+    }
+
+    return {
+      patch: nextPatch,
+      warnings,
+      idsRenamed: remapped.idsRenamed,
+      connectionsToRemove,
+      connectionsToAdd
+    };
+  }
+
+  private applyPlannedConnections(plan: PlannedApply, warnings: string[]): number {
+    for (const rm of plan.connectionsToRemove) {
+      const existing = this.connections.find((c) =>
+        c.sourceModuleId === rm.sourceModuleId &&
+        c.targetModuleId === rm.targetModuleId &&
+        (c.sourcePortId || 'audio') === rm.sourcePortId &&
+        (c.targetPortId || 'audio') === rm.targetPortId
+      );
+      if (existing) this.removeConnection(existing);
+    }
+
+    let created = 0;
+    for (const conn of plan.connectionsToAdd) {
+      const sourcePort = this.container.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output[data-port-id="${conn.sourcePortId}"]`) as HTMLElement | null;
+      const targetPort = this.container.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input[data-port-id="${conn.targetPortId}"]`) as HTMLElement | null;
+      if (!sourcePort || !targetPort) {
+        warnings.push(`Could not apply connection ${conn.sourceModuleId}:${conn.sourcePortId} -> ${conn.targetModuleId}:${conn.targetPortId}.`);
+        continue;
+      }
+      if (this.attemptConnection(sourcePort, targetPort)) {
+        created += 1;
+      }
+    }
+    return created;
+  }
+
+  public previewApplyState(jsonString: string, options: ApplyOptions): ApplySummary {
+    const warnings: string[] = [];
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'unknown parse error';
+      return {
+        modulesAdded: 0,
+        connectionsAdded: 0,
+        routesRewired: 0,
+        idsRenamed: 0,
+        warnings: [`Failed to parse patch JSON: ${message}`]
+      };
+    }
+
+    const normalized = this.normalizePatchState(parsed);
+    warnings.push(...normalized.warnings);
+    const planned = this.buildApplyPlan(normalized.state, options);
+    warnings.push(...planned.warnings);
+
+    return {
+      modulesAdded: planned.patch.modules.length,
+      connectionsAdded: planned.connectionsToAdd.length,
+      routesRewired: planned.connectionsToRemove.length,
+      idsRenamed: planned.idsRenamed,
+      warnings
+    };
+  }
+
+  public applyState(jsonString: string, options: ApplyOptions): ApplyStateResult {
+    const mode: ApplyMode = options.mode || 'replace';
+    if (mode === 'replace') {
+      const replaced = this.importState(jsonString);
+      return {
+        ...replaced,
+        summary: {
+          modulesAdded: replaced.modulesCreated,
+          connectionsAdded: replaced.connectionsCreated,
+          routesRewired: 0,
+          idsRenamed: 0,
+          warnings: [...replaced.warnings]
+        }
+      };
+    }
+
+    const warnings: string[] = [];
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'unknown parse error';
+      warnings.push(`Failed to parse patch JSON: ${message}`);
+      return {
+        modulesCreated: 0,
+        connectionsCreated: 0,
+        warnings,
+        summary: {
+          modulesAdded: 0,
+          connectionsAdded: 0,
+          routesRewired: 0,
+          idsRenamed: 0,
+          warnings: [...warnings]
+        }
+      };
+    }
+
+    const normalized = this.normalizePatchState(parsed);
+    warnings.push(...normalized.warnings);
+    const planned = this.buildApplyPlan(normalized.state, options);
+    warnings.push(...planned.warnings);
+
+    // Stop transport before mutating graph
+    if (transport.isPlaying) {
+      transport.stop();
+    }
+
+    let modulesCreated = 0;
+    for (const mod of planned.patch.modules) {
+      if (!window._createModule) {
+        warnings.push('Module creation callback is unavailable.');
+        break;
+      }
+      const created = window._createModule(mod.type, mod.id, mod.x, mod.y, mod.state);
+      if (created) {
+        modulesCreated += 1;
+      } else {
+        warnings.push(`Failed to create module ${mod.id} (${mod.type}).`);
+      }
+    }
+
+    const connectionsCreated = this.applyPlannedConnections(planned, warnings);
+
+    return {
+      modulesCreated,
+      connectionsCreated,
+      warnings,
+      summary: {
+        modulesAdded: planned.patch.modules.length,
+        connectionsAdded: planned.connectionsToAdd.length,
+        routesRewired: planned.connectionsToRemove.length,
+        idsRenamed: planned.idsRenamed,
+        warnings: [...warnings]
+      }
+    };
   }
 
   public importState(jsonString: string): ImportStateResult {

@@ -68,6 +68,21 @@ export class DelayModule extends ModularNode {
     this.dry.gain.setTargetAtTime(1 - val, ctx.currentTime, 0.05);
   }
 
+  public override pushStateToAudio(): void {
+    const s = this._state;
+    const ctx = audioEngine.getContext();
+    if (typeof s.time === 'number') {
+      this.delay.delayTime.setValueAtTime(s.time, ctx.currentTime);
+    }
+    if (typeof s.feedback === 'number') {
+      this.feedback.gain.setValueAtTime(s.feedback, ctx.currentTime);
+    }
+    if (typeof s.mix === 'number') {
+      this.mix.gain.setValueAtTime(s.mix, ctx.currentTime);
+      this.dry.gain.setValueAtTime(1 - s.mix, ctx.currentTime);
+    }
+  }
+
   public override destroy(): void {
     this.inputGain.disconnect();
     this.delay.disconnect();

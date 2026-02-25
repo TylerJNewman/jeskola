@@ -22,6 +22,13 @@ export class GainModule extends ModularNode {
     this.gain.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
   }
 
+  public override pushStateToAudio(): void {
+    const s = this._state;
+    if (typeof s.level === 'number') {
+      this.gain.gain.setValueAtTime(s.level, audioEngine.getContext().currentTime);
+    }
+  }
+
   public override destroy(): void {
     this.gain.disconnect();
     super.destroy();

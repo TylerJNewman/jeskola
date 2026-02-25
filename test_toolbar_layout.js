@@ -9,43 +9,29 @@ import puppeteer from 'puppeteer';
     await page.setViewport({ width: 1600, height: 900 });
     await page.goto('http://localhost:5173/', { waitUntil: 'networkidle0' });
 
-    const wideState = await page.evaluate(() => {
+    const initialState = await page.evaluate(() => {
       const topTier = document.querySelector('.top-tier');
       const secondTier = document.querySelector('.second-tier');
       const activeChip = document.querySelector('.toolbar-section-chip.active');
       const panels = Array.from(document.querySelectorAll('.toolbar-section-panel'));
+      const drawer = document.querySelector('.toolbar-drawer');
 
       return {
         hasTopTier: !!topTier,
         hasSecondTier: !!secondTier,
         activeSection: activeChip?.getAttribute('data-section') || '',
-        compact: document.body.classList.contains('toolbar-compact'),
-        hiddenCount: panels.filter((p) => p.classList.contains('hidden')).length
+        drawerVisible: !!drawer && !drawer.classList.contains('hidden'),
+        visiblePanels: panels
+          .filter((p) => !p.classList.contains('hidden'))
+          .map((p) => p.getAttribute('data-section'))
       };
     });
 
-    assert.equal(wideState.hasTopTier, true, 'Expected top-tier to render');
-    assert.equal(wideState.hasSecondTier, true, 'Expected second-tier to render');
-    assert.equal(wideState.activeSection, 'recipe', 'Expected recipe section active by default');
-    assert.equal(wideState.compact, false, 'Wide viewport should not be compact mode');
-    assert.equal(wideState.hiddenCount, 0, 'Wide viewport should keep all section panels visible');
-
-    await page.setViewport({ width: 1200, height: 900 });
-    await new Promise((r) => setTimeout(r, 100));
-
-    const compactState = await page.evaluate(() => {
-      const panels = Array.from(document.querySelectorAll('.toolbar-section-panel'));
-      const visiblePanels = panels.filter((p) => !p.classList.contains('hidden'));
-      return {
-        compact: document.body.classList.contains('toolbar-compact'),
-        visibleCount: visiblePanels.length,
-        visibleSection: visiblePanels[0]?.getAttribute('data-section') || ''
-      };
-    });
-
-    assert.equal(compactState.compact, true, 'Narrow viewport should enable compact mode');
-    assert.equal(compactState.visibleCount, 1, 'Compact mode should show one section panel');
-    assert.equal(compactState.visibleSection, 'recipe', 'Recipe should be visible by default in compact mode');
+    assert.equal(initialState.hasTopTier, true, 'Expected top-tier to render');
+    assert.equal(initialState.hasSecondTier, true, 'Expected second-tier to render');
+    assert.equal(initialState.activeSection, 'recipe', 'Expected recipe section active by default');
+    assert.equal(initialState.drawerVisible, true, 'Drawer should be visible by default');
+    assert.deepEqual(initialState.visiblePanels, ['recipe'], 'Only recipe panel should be visible initially');
 
     await page.evaluate(() => {
       const presetChip = document.querySelector('.toolbar-section-chip[data-section="preset"]');
@@ -66,6 +52,20 @@ import puppeteer from 'puppeteer';
     assert.equal(switchedState.visibleCount, 1, 'Compact mode should still show one panel after switching');
     assert.equal(switchedState.visibleSection, 'preset', 'Preset panel should be visible after selecting preset chip');
     assert.equal(switchedState.activeSection, 'preset', 'Preset chip should become active after click');
+
+    await page.evaluate(() => {
+      const presetChip = document.querySelector('.toolbar-section-chip[data-section="preset"]');
+      presetChip?.click();
+    });
+
+    const closedState = await page.evaluate(() => {
+      const drawer = document.querySelector('.toolbar-drawer');
+      return {
+        drawerHidden: !!drawer && drawer.classList.contains('hidden')
+      };
+    });
+
+    assert.equal(closedState.drawerHidden, true, 'Clicking active chip should close drawer');
 
     console.log('Toolbar layout test passed');
   } finally {

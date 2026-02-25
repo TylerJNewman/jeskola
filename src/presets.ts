@@ -27,6 +27,9 @@ type PresetDef = {
 type PresetModifier = {
   name: string;
   apply: (base: PatchState) => PatchState;
+  category?: 'tone' | 'movement' | 'dynamics' | 'space' | 'character';
+  applyModesSupported?: Array<'add_chain' | 'add_modulation' | 'add_send' | 'add_layer' | 'replace'>;
+  conflictsWith?: string[];
   constraints?: {
     requiresTypes?: string[];
   };
@@ -419,6 +422,8 @@ const BASE_PRESETS: PresetDef[] = [
 const PRESET_MODIFIERS: PresetModifier[] = [
   {
     name: 'Slow Wobble',
+    category: 'movement',
+    applyModesSupported: ['add_chain', 'add_modulation', 'replace'],
     constraints: { requiresTypes: ['filter'] },
     apply: (base) => {
       const patch = clonePatch(base);
@@ -452,6 +457,8 @@ const PRESET_MODIFIERS: PresetModifier[] = [
   },
   {
     name: 'Wide Echo',
+    category: 'space',
+    applyModesSupported: ['add_chain', 'add_send', 'replace'],
     apply: (base) => {
       const patch = clonePatch(base);
       const route = findFirstAudioRouteToMaster(patch);
@@ -496,6 +503,8 @@ const PRESET_MODIFIERS: PresetModifier[] = [
   },
   {
     name: 'Drive Boost',
+    category: 'character',
+    applyModesSupported: ['add_chain', 'add_layer', 'replace'],
     apply: (base) => {
       const patch = clonePatch(base);
       const existingDist = firstModuleOfType(patch, 'distortion');
@@ -546,6 +555,8 @@ const PRESET_MODIFIERS: PresetModifier[] = [
   },
   {
     name: 'Envelope Pump',
+    category: 'dynamics',
+    applyModesSupported: ['add_modulation', 'add_chain', 'replace'],
     apply: (base) => {
       const patch = clonePatch(base);
 
@@ -737,6 +748,21 @@ export function buildStackedPreset(baseKey: string, modifierKeys: string[]): Sta
     json: JSON.stringify(stackedPreset.patch)
   };
 }
+
+export const MODIFIER_METADATA: Record<string, {
+  category: 'tone' | 'movement' | 'dynamics' | 'space' | 'character';
+  applyModesSupported: Array<'add_chain' | 'add_modulation' | 'add_send' | 'add_layer' | 'replace'>;
+  conflictsWith: string[];
+}> = Object.fromEntries(
+  PRESET_MODIFIERS.map((m) => [
+    slugify(m.name),
+    {
+      category: m.category || 'tone',
+      applyModesSupported: m.applyModesSupported || ['replace'],
+      conflictsWith: m.conflictsWith || []
+    }
+  ])
+);
 
 function applyModuleStateOverrides(base: PatchState, overrides: RecipeModuleStateOverride[], label: string): PatchState {
   const patch = clonePatch(base);

@@ -29,7 +29,9 @@ import {
 } from './presets';
 import { transport } from './audio/Transport';
 import { SequencerModule } from './audio/nodes/SequencerModule';
+import { KeyboardModule } from './audio/nodes/KeyboardModule';
 import { NO_VALUE, midiToNoteName } from './audio/sequencer/types';
+import type { ApplyMode, ApplyTarget } from './ui/Workspace';
 
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('btn-master-play') as HTMLButtonElement;
@@ -37,9 +39,12 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Wait for user interaction to start audio (browser policy)
   let initialized = false;
+  let initializing = false;
 
   async function ensureInitialized() {
+    if (initializing) return; // guard re-entrance
     if (!initialized) {
+      initializing = true;
       startBtn.textContent = 'INITIALIZING...';
       await audioEngine.init();
       
@@ -53,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
       createMasterModule(workspace);
       
       initialized = true;
+      initializing = false;
       startBtn.textContent = 'STOP AUDIO';
       startBtn.classList.remove('primary');
     }
@@ -98,6 +104,120 @@ document.addEventListener('DOMContentLoaded', () => {
     // We'll trust the initialized flag
     return window._workspace;
   }
+
+  const KEY_TO_SEMITONE: Record<string, number> = {
+    a: 0,
+    w: 1,
+    s: 2,
+    e: 3,
+    d: 4,
+    f: 5,
+    g: 7
+  };
+  const OCTAVE_DOWN_KEY = 'z';
+  const OCTAVE_UP_KEY = 'x';
+  const heldNoteKeys: string[] = [];
+
+  const isTextInputTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    if (target.isContentEditable) return true;
+    return !!target.closest('[contenteditable="true"]');
+  };
+
+  const getEnabledKeyboardModules = (): KeyboardModule[] => {
+    const ws = getWorkspace();
+    if (!ws) return [];
+    return ws.getModulesByType<KeyboardModule>('keyboard').filter((m) => m.enabled);
+  };
+
+  const updateKeyboardModuleUi = () => {
+    const ws = getWorkspace();
+    if (!ws) return;
+    const keyboardEls = document.querySelectorAll('.module[data-id] .keyboard-controls');
+    keyboardEls.forEach((controls) => {
+      const moduleEl = controls.closest('.module[data-id]');
+      if (!(moduleEl instanceof HTMLElement)) return;
+      const moduleId = moduleEl.getAttribute('data-id');
+      if (!moduleId) return;
+      const kb = ws.getModuleById<KeyboardModule>(moduleId);
+      if (!(kb instanceof KeyboardModule)) return;
+
+      const octaveReadout = controls.querySelector('.keyboard-octave-value');
+      if (octaveReadout instanceof HTMLElement) {
+        const signedOct = kb.octaveOffset >= 0 ? `+${kb.octaveOffset}` : String(kb.octaveOffset);
+        octaveReadout.textContent = `OCT: ${signedOct}`;
+      }
+      const enabledToggle = controls.querySelector('.keyboard-enabled-toggle');
+      if (enabledToggle instanceof HTMLInputElement) {
+        enabledToggle.checked = kb.enabled;
+      }
+    });
+  };
+
+  const applyTopHeldNote = () => {
+    const modules = getEnabledKeyboardModules();
+    if (modules.length === 0) return;
+
+    const topKey = heldNoteKeys[heldNoteKeys.length - 1];
+    if (!topKey) {
+      modules.forEach((kb) => kb.noteOff());
+      return;
+    }
+
+    const semitone = KEY_TO_SEMITONE[topKey];
+    if (semitone === undefined) return;
+    modules.forEach((kb) => {
+      kb.noteOn(kb.baseMidi + kb.octaveOffset * 12 + semitone);
+    });
+  };
+
+  const releaseAllKeyboardNotes = () => {
+    heldNoteKeys.length = 0;
+    getEnabledKeyboardModules().forEach((kb) => kb.noteOff());
+  };
+
+  window.addEventListener('keydown', async (event) => {
+    const key = event.key.toLowerCase();
+    const isMappedNote = key in KEY_TO_SEMITONE;
+    const isOctaveKey = key === OCTAVE_DOWN_KEY || key === OCTAVE_UP_KEY;
+    if (!isMappedNote && !isOctaveKey) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (isTextInputTarget(event.target)) return;
+    if (event.repeat && (isMappedNote || isOctaveKey)) return;
+
+    if (!initialized) {
+      await ensureInitialized();
+    }
+
+    if (isOctaveKey) {
+      const delta = key === OCTAVE_DOWN_KEY ? -1 : 1;
+      getEnabledKeyboardModules().forEach((kb) => kb.adjustOctave(delta));
+      updateKeyboardModuleUi();
+      return;
+    }
+
+    if (!heldNoteKeys.includes(key)) {
+      heldNoteKeys.push(key);
+    }
+    applyTopHeldNote();
+  });
+
+  window.addEventListener('keyup', (event) => {
+    const key = event.key.toLowerCase();
+    if (!(key in KEY_TO_SEMITONE)) return;
+
+    const idx = heldNoteKeys.indexOf(key);
+    if (idx === -1) return;
+    heldNoteKeys.splice(idx, 1);
+    applyTopHeldNote();
+  });
+
+  window.addEventListener('blur', releaseAllKeyboardNotes);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) releaseAllKeyboardNotes();
+  });
 
   // --- SAVE / LOAD LOGIC ---
   const saveBtn = document.createElement('button');
@@ -229,12 +349,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const stackModifierSelectB = createStackModifierSelect('Modifier 2');
   const stackModifierSelectC = createStackModifierSelect('Modifier 3');
 
-  const STACK_PRESET_COMBOS: Array<{ label: string; baseKey: string; modifiers: string[] }> = [
-    { label: 'Acid Movement', baseKey: 'acid-drive', modifiers: ['slow-wobble', 'envelope-pump'] },
-    { label: 'Dub Motion Bus', baseKey: 'dub-chord-echo', modifiers: ['slow-wobble', 'drive-boost'] },
-    { label: 'Mono Lead Plus', baseKey: 'classic-mono-lead', modifiers: ['slow-wobble', 'envelope-pump'] },
-    { label: 'Sub Heavy Wobble', baseKey: 'sub-bass', modifiers: ['drive-boost', 'slow-wobble'] },
-    { label: 'FM Space Bell', baseKey: 'electro-fm-bell', modifiers: ['wide-echo'] }
+  const STACK_PRESET_COMBOS: Array<{
+    label: string;
+    baseKey: string;
+    modifiers: string[];
+    applyHint: { mode: ApplyMode; targetType: ApplyTarget; preferredTargetModuleType?: string };
+  }> = [
+    { label: 'Acid Movement', baseKey: 'acid-drive', modifiers: ['slow-wobble', 'envelope-pump'], applyHint: { mode: 'add_chain', targetType: 'after_module', preferredTargetModuleType: 'filter' } },
+    { label: 'Dub Motion Bus', baseKey: 'dub-chord-echo', modifiers: ['slow-wobble', 'drive-boost'], applyHint: { mode: 'add_send', targetType: 'master_send' } },
+    { label: 'Mono Lead Plus', baseKey: 'classic-mono-lead', modifiers: ['slow-wobble', 'envelope-pump'], applyHint: { mode: 'add_chain', targetType: 'after_module', preferredTargetModuleType: 'gain' } },
+    { label: 'Sub Heavy Wobble', baseKey: 'sub-bass', modifiers: ['drive-boost', 'slow-wobble'], applyHint: { mode: 'add_layer', targetType: 'parallel_to_module', preferredTargetModuleType: 'filter' } },
+    { label: 'FM Space Bell', baseKey: 'electro-fm-bell', modifiers: ['wide-echo'], applyHint: { mode: 'add_send', targetType: 'master_send' } }
   ];
 
   const stackPresetSelect = document.createElement('select');
@@ -250,6 +375,19 @@ document.addEventListener('DOMContentLoaded', () => {
     opt.textContent = combo.label;
     stackPresetSelect.appendChild(opt);
   });
+
+  const buildStackJsonFromCombo = (comboIndex: number): string => {
+    const combo = STACK_PRESET_COMBOS[comboIndex];
+    if (!combo) return '';
+    return buildStackedPreset(combo.baseKey, combo.modifiers).json;
+  };
+
+  const getSourceJsonByType = (sourceType: 'preset' | 'stack' | 'recipe', sourceKey: string): string => {
+    if (sourceType === 'preset') return PRESETS[sourceKey] || '';
+    if (sourceType === 'recipe') return RECIPES[sourceKey] || '';
+    const idx = Number(sourceKey);
+    return buildStackJsonFromCombo(idx);
+  };
 
   const applyStackFromControls = () => {
     const ws = getWorkspace();
@@ -455,9 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const tier1Global = document.querySelector('.tier1-global');
   const sectionChips = document.querySelector('.toolbar-section-chips');
-  const sectionPanels = document.querySelector('.toolbar-sections');
-
-  if (tier1Global && sectionChips && sectionPanels) {
+  if (tier1Global && sectionChips) {
     const transportGroup = document.createElement('div');
     transportGroup.className = 'toolbar-group toolbar-group-transport';
     transportGroup.append(transportPlayBtn, bpmInput, bpmLabel);
@@ -466,25 +602,302 @@ document.addEventListener('DOMContentLoaded', () => {
     fileGroup.className = 'toolbar-group toolbar-group-file';
     fileGroup.append(saveBtn, loadBtn, loadFileBtn);
 
+    const applyGroup = document.createElement('div');
+    applyGroup.className = 'toolbar-group toolbar-group-apply';
+    const openApplyDrawerBtn = document.createElement('button');
+    openApplyDrawerBtn.className = 'control-btn apply-open-btn';
+    openApplyDrawerBtn.innerHTML = '<span>APPLY</span>';
+    applyGroup.appendChild(openApplyDrawerBtn);
+
     const audioGroup = document.createElement('div');
     audioGroup.className = 'toolbar-group toolbar-group-audio';
     audioGroup.appendChild(startBtn);
 
-    tier1Global.replaceChildren(transportGroup, fileGroup, audioGroup);
+    tier1Global.replaceChildren(transportGroup, fileGroup, applyGroup, audioGroup);
 
     type ToolbarSectionKey = 'recipe' | 'preset' | 'stack';
     const activeSectionDefault: ToolbarSectionKey = 'recipe';
-    let activeSection: ToolbarSectionKey = activeSectionDefault;
+    let activeSection: ToolbarSectionKey | null = null;
 
     const chips = new Map<ToolbarSectionKey, HTMLButtonElement>();
     const panels = new Map<ToolbarSectionKey, HTMLElement>();
+
+    const toolbarDrawer = document.createElement('aside');
+    toolbarDrawer.className = 'toolbar-drawer hidden';
+    toolbarDrawer.setAttribute('aria-hidden', 'true');
+
+    const drawerHeader = document.createElement('div');
+    drawerHeader.className = 'toolbar-drawer-header';
+
+    const drawerTitle = document.createElement('h2');
+    drawerTitle.className = 'toolbar-drawer-title';
+    drawerTitle.textContent = 'Recipe';
+
+    const drawerClose = document.createElement('button');
+    drawerClose.className = 'toolbar-drawer-close';
+    drawerClose.textContent = '×';
+    drawerClose.setAttribute('aria-label', 'Close panel');
+
+    drawerHeader.append(drawerTitle, drawerClose);
+
+    const drawerBody = document.createElement('div');
+    drawerBody.className = 'toolbar-drawer-body';
+
+    toolbarDrawer.append(drawerHeader, drawerBody);
+    document.body.appendChild(toolbarDrawer);
+
+    const applyDrawer = document.createElement('aside');
+    applyDrawer.className = 'apply-drawer hidden';
+    applyDrawer.setAttribute('aria-hidden', 'true');
+
+    const applyHeader = document.createElement('div');
+    applyHeader.className = 'apply-drawer-header';
+    const applyTitle = document.createElement('h2');
+    applyTitle.className = 'apply-drawer-title';
+    applyTitle.textContent = 'Apply';
+    const applyClose = document.createElement('button');
+    applyClose.className = 'apply-drawer-close';
+    applyClose.textContent = '×';
+    applyClose.setAttribute('aria-label', 'Close apply drawer');
+    applyHeader.append(applyTitle, applyClose);
+
+    const applyBody = document.createElement('div');
+    applyBody.className = 'apply-drawer-body';
+
+    const applySourceType = document.createElement('select');
+    applySourceType.className = 'select-preset apply-source-type';
+    ['preset', 'stack', 'recipe'].forEach((type) => {
+      const opt = document.createElement('option');
+      opt.value = type;
+      opt.textContent = type.toUpperCase();
+      applySourceType.appendChild(opt);
+    });
+
+    const applySourceItem = document.createElement('select');
+    applySourceItem.className = 'select-preset apply-source-item';
+
+    const applyModeSelect = document.createElement('select');
+    applyModeSelect.className = 'select-preset apply-mode';
+    const applyModes: Array<{ value: ApplyMode; label: string }> = [
+      { value: 'add_chain', label: 'Add Chain' },
+      { value: 'add_modulation', label: 'Add Modulation' },
+      { value: 'add_send', label: 'Add Send FX' },
+      { value: 'add_layer', label: 'Add Layer' },
+      { value: 'replace', label: 'Replace' }
+    ];
+    applyModes.forEach((m) => {
+      const opt = document.createElement('option');
+      opt.value = m.value;
+      opt.textContent = m.label;
+      applyModeSelect.appendChild(opt);
+    });
+
+    const applyTargetType = document.createElement('select');
+    applyTargetType.className = 'select-preset apply-target-type';
+    const targetTypes: Array<{ value: ApplyTarget; label: string }> = [
+      { value: 'auto', label: 'Auto' },
+      { value: 'before_module', label: 'Before Module' },
+      { value: 'after_module', label: 'After Module' },
+      { value: 'parallel_to_module', label: 'Parallel To Module' },
+      { value: 'master_send', label: 'Master Send' }
+    ];
+    targetTypes.forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t.value;
+      opt.textContent = t.label;
+      applyTargetType.appendChild(opt);
+    });
+
+    const applyTargetModule = document.createElement('select');
+    applyTargetModule.className = 'select-preset apply-target-module';
+    const applyTargetEmpty = document.createElement('option');
+    applyTargetEmpty.value = '';
+    applyTargetEmpty.textContent = 'Target Module (optional)';
+    applyTargetModule.appendChild(applyTargetEmpty);
+
+    const applySummary = document.createElement('pre');
+    applySummary.className = 'apply-summary';
+    applySummary.textContent = 'Configure source/mode/target to preview.';
+
+    const applyActions = document.createElement('div');
+    applyActions.className = 'apply-actions';
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'control-btn primary apply-apply-btn';
+    applyBtn.textContent = 'APPLY';
+    const replaceBtn = document.createElement('button');
+    replaceBtn.className = 'control-btn apply-replace-btn';
+    replaceBtn.textContent = 'REPLACE INSTEAD';
+    applyActions.append(applyBtn, replaceBtn);
+
+    applyBody.append(
+      applySourceType,
+      applySourceItem,
+      applyModeSelect,
+      applyTargetType,
+      applyTargetModule,
+      applySummary,
+      applyActions
+    );
+    applyDrawer.append(applyHeader, applyBody);
+    document.body.appendChild(applyDrawer);
+
+    const syncApplyDrawer = (open: boolean) => {
+      applyDrawer.classList.toggle('hidden', !open);
+      applyDrawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+      openApplyDrawerBtn.classList.toggle('primary', open);
+    };
+
+    const refreshApplySourceItems = () => {
+      const sourceType = applySourceType.value as 'preset' | 'stack' | 'recipe';
+      applySourceItem.innerHTML = '';
+      if (sourceType === 'preset') {
+        PRESET_ORDER.forEach((key) => {
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = PRESET_LABELS[key] || key;
+          applySourceItem.appendChild(opt);
+        });
+      } else if (sourceType === 'recipe') {
+        RECIPE_ORDER.forEach((key) => {
+          const opt = document.createElement('option');
+          opt.value = key;
+          opt.textContent = RECIPE_LABELS[key] || key;
+          applySourceItem.appendChild(opt);
+        });
+      } else {
+        STACK_PRESET_COMBOS.forEach((combo, idx) => {
+          const opt = document.createElement('option');
+          opt.value = String(idx);
+          opt.textContent = combo.label;
+          applySourceItem.appendChild(opt);
+        });
+      }
+    };
+
+    const refreshApplyTargets = () => {
+      const ws = getWorkspace();
+      applyTargetModule.innerHTML = '';
+      const first = document.createElement('option');
+      first.value = '';
+      first.textContent = 'Target Module (optional)';
+      applyTargetModule.appendChild(first);
+      if (!ws) return;
+
+      const mode = applyModeSelect.value as ApplyMode;
+      const mods = ws.listModules();
+      mods.forEach((m) => {
+        const moduleEl = document.querySelector(`.module[data-id="${m.id}"]`);
+        const hasCv = !!moduleEl?.querySelector('.port.input.cv');
+        if (mode === 'add_modulation' && !hasCv) return;
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.id} (${m.type})`;
+        applyTargetModule.appendChild(opt);
+      });
+    };
+
+    const refreshApplyPreview = () => {
+      const ws = getWorkspace();
+      if (!ws) {
+        applySummary.textContent = 'Initialize audio first.';
+        return;
+      }
+      const sourceType = applySourceType.value as 'preset' | 'stack' | 'recipe';
+      const sourceKey = applySourceItem.value;
+      const json = getSourceJsonByType(sourceType, sourceKey);
+      if (!json) {
+        applySummary.textContent = 'No source selected.';
+        return;
+      }
+      const summary = ws.previewApplyState(json, {
+        mode: applyModeSelect.value as ApplyMode,
+        targetType: applyTargetType.value as ApplyTarget,
+        targetModuleId: applyTargetModule.value || undefined,
+        safeRename: true,
+        dryRun: true
+      });
+      const warningText = summary.warnings.length > 0 ? `\nWarnings:\n- ${summary.warnings.join('\n- ')}` : '';
+      applySummary.textContent =
+        `Adds modules: ${summary.modulesAdded}\n` +
+        `Adds connections: ${summary.connectionsAdded}\n` +
+        `Rewired routes: ${summary.routesRewired}\n` +
+        `Renamed IDs: ${summary.idsRenamed}${warningText}`;
+    };
+
+    const applyStackHintDefaults = () => {
+      if (applySourceType.value !== 'stack') return;
+      const combo = STACK_PRESET_COMBOS[Number(applySourceItem.value)];
+      if (!combo) return;
+      applyModeSelect.value = combo.applyHint.mode;
+      applyTargetType.value = combo.applyHint.targetType;
+      refreshApplyTargets();
+      if (combo.applyHint.preferredTargetModuleType) {
+        const preferred = Array.from(applyTargetModule.options).find((opt) =>
+          opt.textContent?.includes(`(${combo.applyHint.preferredTargetModuleType})`)
+        );
+        if (preferred) applyTargetModule.value = preferred.value;
+      }
+    };
+
+    const applyCurrentSource = (replaceInstead: boolean) => {
+      const ws = getWorkspace();
+      if (!ws) return;
+      const sourceType = applySourceType.value as 'preset' | 'stack' | 'recipe';
+      const sourceKey = applySourceItem.value;
+      const json = getSourceJsonByType(sourceType, sourceKey);
+      if (!json) return;
+      if (replaceInstead) {
+        ws.importState(json);
+      } else {
+        ws.applyState(json, {
+          mode: applyModeSelect.value as ApplyMode,
+          targetType: applyTargetType.value as ApplyTarget,
+          targetModuleId: applyTargetModule.value || undefined,
+          safeRename: true
+        });
+      }
+      refreshApplyTargets();
+      refreshApplyPreview();
+    };
+
+    applySourceType.addEventListener('change', () => {
+      refreshApplySourceItems();
+      applyStackHintDefaults();
+      refreshApplyPreview();
+    });
+    applySourceItem.addEventListener('change', () => {
+      applyStackHintDefaults();
+      refreshApplyPreview();
+    });
+    applyModeSelect.addEventListener('change', () => {
+      refreshApplyTargets();
+      refreshApplyPreview();
+    });
+    applyTargetType.addEventListener('change', refreshApplyPreview);
+    applyTargetModule.addEventListener('change', refreshApplyPreview);
+    applyBtn.addEventListener('click', () => applyCurrentSource(false));
+    replaceBtn.addEventListener('click', () => applyCurrentSource(true));
+
+    openApplyDrawerBtn.addEventListener('click', () => {
+      const isHidden = applyDrawer.classList.contains('hidden');
+      syncApplyDrawer(isHidden);
+      if (isHidden) {
+        refreshApplyTargets();
+        refreshApplyPreview();
+      }
+    });
+    applyClose.addEventListener('click', () => syncApplyDrawer(false));
+
+    refreshApplySourceItems();
+    refreshApplyTargets();
+    refreshApplyPreview();
+    syncApplyDrawer(false);
 
     const createSectionChip = (key: ToolbarSectionKey, label: string) => {
       const chip = document.createElement('button');
       chip.className = 'toolbar-section-chip';
       chip.setAttribute('data-section', key);
       chip.textContent = label;
-      chip.addEventListener('click', () => setActiveSection(key));
       chips.set(key, chip);
       return chip;
     };
@@ -520,13 +933,13 @@ document.addEventListener('DOMContentLoaded', () => {
       stackHint
     );
 
-    sectionPanels.replaceChildren(recipePanel, presetPanel, stackPanel);
-
-    const compactMq = window.matchMedia('(max-width: 1400px)');
+    drawerBody.replaceChildren(recipePanel, presetPanel, stackPanel);
 
     const syncSectionVisibility = () => {
-      const isCompact = compactMq.matches;
-      document.body.classList.toggle('toolbar-compact', isCompact);
+      const isOpen = !!activeSection;
+      toolbarDrawer.classList.toggle('hidden', !isOpen);
+      toolbarDrawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+
       (['recipe', 'preset', 'stack'] as ToolbarSectionKey[]).forEach((key) => {
         const chip = chips.get(key);
         const panel = panels.get(key);
@@ -534,16 +947,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const isActive = key === activeSection;
         chip.classList.toggle('active', isActive);
         panel.classList.toggle('active', isActive);
-        panel.classList.toggle('hidden', isCompact && !isActive);
+        panel.classList.toggle('hidden', !isActive);
       });
     };
 
-    const setActiveSection = (key: ToolbarSectionKey) => {
+    const setActiveSection = (key: ToolbarSectionKey | null) => {
       activeSection = key;
+      if (key) {
+        const label = key === 'recipe' ? 'Recipe' : key === 'preset' ? 'Preset' : 'Stack';
+        drawerTitle.textContent = label;
+      }
       syncSectionVisibility();
     };
 
-    compactMq.addEventListener('change', syncSectionVisibility);
+    chips.forEach((chip, key) => {
+      chip.onclick = () => {
+        if (activeSection === key) {
+          setActiveSection(null);
+        } else {
+          setActiveSection(key);
+        }
+      };
+    });
+
+    drawerClose.addEventListener('click', () => {
+      setActiveSection(null);
+    });
+
     setActiveSection(activeSectionDefault);
   }
 
@@ -584,6 +1014,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const el = document.createElement('div');
     el.className = 'module';
+    const knobs: Knob[] = []; // Track knobs for disposal
     let moduleSetup = (_container: HTMLElement) => {}; // Callback to attach knobs after HTML is parsed
 
     switch (type) {
@@ -640,30 +1071,30 @@ document.addEventListener('DOMContentLoaded', () => {
           const freqContainer = container.querySelector('.freq-container') as HTMLElement;
           
           const octCg = container.querySelector('.oct-group') as HTMLElement;
-          new Knob(octCg, 'OCT', -3, 3, osc.state.octave, (val) => {
+          knobs.push(new Knob(octCg, 'OCT', -3, 3, osc.state.octave, (val) => {
             osc.setOctave(val);
             osc.state.octave = val;
-          }, false, false, undefined, 1, 0);
+          }, false, false, undefined, 1, 0));
           
           const coarseCg = container.querySelector('.coarse-group') as HTMLElement;
-          new Knob(coarseCg, 'COARSE', -12, 12, osc.state.semitone, (val) => {
+          knobs.push(new Knob(coarseCg, 'COARSE', -12, 12, osc.state.semitone, (val) => {
             osc.setSemitone(val);
             osc.state.semitone = val;
-          }, false, false, undefined, 1, 0);
+          }, false, false, undefined, 1, 0));
           
           const fineCg = container.querySelector('.fine-group') as HTMLElement;
-          new Knob(fineCg, 'FINE', -100, 100, osc.state.cents, (val) => {
+          knobs.push(new Knob(fineCg, 'FINE', -100, 100, osc.state.cents, (val) => {
             osc.setCents(val);
             osc.state.cents = val;
-          }, false, false, undefined, undefined, 0);
+          }, false, false, undefined, undefined, 0));
 
           const freqCg = container.querySelector('.freq-group') as HTMLElement;
-          new Knob(freqCg, 'FREQ', 0.1, 2000, osc.state.freq, (val) => {
+          knobs.push(new Knob(freqCg, 'FREQ', 0.1, 2000, osc.state.freq, (val) => {
             osc.setFreq(val);
             osc.state.freq = val;
           }, true, !!osc.state.freqLog, (isLog) => {
             osc.state.freqLog = isLog;
-          }, undefined, 440);
+          }, undefined, 440));
 
           // Mode Toggle UI
           const modeToggle = container.querySelector('.osc-mode-toggle .mini-segment') as HTMLElement;
@@ -745,18 +1176,18 @@ document.addEventListener('DOMContentLoaded', () => {
           else filt.state = { cutoff: 1000, res: 1, type: 'lowpass' };
 
           const freqCg = container.querySelector('.freq-group') as HTMLElement;
-          new Knob(freqCg, 'CUTOFF', 20, 10000, filt.state.cutoff, (val) => {
+          knobs.push(new Knob(freqCg, 'CUTOFF', 20, 10000, filt.state.cutoff, (val) => {
             filt.setFrequency(val);
             filt.state.cutoff = val;
           }, true, !!filt.state.cutoffLog, (isLog) => {
             filt.state.cutoffLog = isLog;
-          }, undefined, 1000);
+          }, undefined, 1000));
           
           const resCg = container.querySelector('.res-group') as HTMLElement;
-          new Knob(resCg, 'RES', 0, 20, filt.state.res, (val) => {
+          knobs.push(new Knob(resCg, 'RES', 0, 20, filt.state.res, (val) => {
             filt.setResonance(val);
             filt.state.res = val;
-          }, false, false, undefined, undefined, 1);
+          }, false, false, undefined, undefined, 1));
 
           filt.setFrequency(filt.state.cutoff);
           filt.setResonance(filt.state.res);
@@ -801,18 +1232,18 @@ document.addEventListener('DOMContentLoaded', () => {
           if (state) del.state = { ...state };
           else del.state = { time: 0.4, feedback: 0.4, mix: 0.5 };
 
-          new Knob(container.querySelector('.time-group') as HTMLElement, 'TIME', 0.0, 2.0, del.state.time, (val) => {
+          knobs.push(new Knob(container.querySelector('.time-group') as HTMLElement, 'TIME', 0.0, 2.0, del.state.time, (val) => {
             del.setTime(val);
             del.state.time = val;
-          }, false, false, undefined, undefined, 0.4);
-          new Knob(container.querySelector('.fb-group') as HTMLElement, 'FEEDBACK', 0.0, 1.0, del.state.feedback, (val) => {
+          }, false, false, undefined, undefined, 0.4));
+          knobs.push(new Knob(container.querySelector('.fb-group') as HTMLElement, 'FEEDBACK', 0.0, 1.0, del.state.feedback, (val) => {
             del.setFeedback(val);
             del.state.feedback = val;
-          }, false, false, undefined, undefined, 0.4);
-          new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, del.state.mix, (val) => {
+          }, false, false, undefined, undefined, 0.4));
+          knobs.push(new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, del.state.mix, (val) => {
             del.setMix(val);
             del.state.mix = val;
-          }, false, false, undefined, undefined, 0.5);
+          }, false, false, undefined, undefined, 0.5));
 
           del.setTime(del.state.time);
           del.setFeedback(del.state.feedback);
@@ -838,10 +1269,10 @@ document.addEventListener('DOMContentLoaded', () => {
           if (state) gn.state = { ...state };
           else gn.state = { level: 0.5 };
 
-          new Knob(container.querySelector('.control-group') as HTMLElement, 'LEVEL', 0.0, 2.0, gn.state.level, (val) => {
+          knobs.push(new Knob(container.querySelector('.control-group') as HTMLElement, 'LEVEL', 0.0, 2.0, gn.state.level, (val) => {
             gn.setGain(val);
             gn.state.level = val;
-          }, false, false, undefined, undefined, 0.5);
+          }, false, false, undefined, undefined, 0.5));
 
           gn.setGain(gn.state.level);
         };
@@ -878,20 +1309,20 @@ document.addEventListener('DOMContentLoaded', () => {
           if (dist.state.mix === undefined) dist.state.mix = 0.5;
           if (dist.state.output === undefined) dist.state.output = 0.8;
 
-          new Knob(container.querySelector('.drive-group') as HTMLElement, 'DRIVE', 0.5, 20.0, dist.state.drive, (val) => {
+          knobs.push(new Knob(container.querySelector('.drive-group') as HTMLElement, 'DRIVE', 0.5, 20.0, dist.state.drive, (val) => {
             dist.setDrive(val);
             dist.state.drive = val;
           }, true, !!dist.state.driveLog, (isLog) => {
             dist.state.driveLog = isLog;
-          }, undefined, 1.0);
-          new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, dist.state.mix, (val) => {
+          }, undefined, 1.0));
+          knobs.push(new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, dist.state.mix, (val) => {
             dist.setMix(val);
             dist.state.mix = val;
-          }, false, false, undefined, undefined, 0.5);
-          new Knob(container.querySelector('.out-group') as HTMLElement, 'OUTPUT', 0.0, 2.0, dist.state.output, (val) => {
+          }, false, false, undefined, undefined, 0.5));
+          knobs.push(new Knob(container.querySelector('.out-group') as HTMLElement, 'OUTPUT', 0.0, 2.0, dist.state.output, (val) => {
             dist.setOutput(val);
             dist.state.output = val;
-          }, false, false, undefined, undefined, 0.8);
+          }, false, false, undefined, undefined, 0.8));
 
           dist.setDrive(dist.state.drive);
           dist.setMix(dist.state.mix);
@@ -930,28 +1361,28 @@ document.addEventListener('DOMContentLoaded', () => {
           else adsr.state = { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.5 };
 
           const aCg = container.querySelector('.a-group') as HTMLElement;
-          new Knob(aCg, 'A', 0.01, 5.0, adsr.state.attack, (val) => {
+          knobs.push(new Knob(aCg, 'A', 0.01, 5.0, adsr.state.attack, (val) => {
             adsr.setAttack(val);
             adsr.state.attack = val;
-          }, false, false, undefined, undefined, 0.1);
+          }, false, false, undefined, undefined, 0.1));
           
           const dCg = container.querySelector('.d-group') as HTMLElement;
-          new Knob(dCg, 'D', 0.01, 5.0, adsr.state.decay, (val) => {
+          knobs.push(new Knob(dCg, 'D', 0.01, 5.0, adsr.state.decay, (val) => {
             adsr.setDecay(val);
             adsr.state.decay = val;
-          }, false, false, undefined, undefined, 0.2);
+          }, false, false, undefined, undefined, 0.2));
 
           const sCg = container.querySelector('.s-group') as HTMLElement;
-          new Knob(sCg, 'S', 0.0, 1.0, adsr.state.sustain, (val) => {
+          knobs.push(new Knob(sCg, 'S', 0.0, 1.0, adsr.state.sustain, (val) => {
             adsr.setSustain(val);
             adsr.state.sustain = val;
-          }, false, false, undefined, undefined, 0.5);
+          }, false, false, undefined, undefined, 0.5));
 
           const rCg = container.querySelector('.r-group') as HTMLElement;
-          new Knob(rCg, 'R', 0.01, 5.0, adsr.state.release, (val) => {
+          knobs.push(new Knob(rCg, 'R', 0.01, 5.0, adsr.state.release, (val) => {
             adsr.setRelease(val);
             adsr.state.release = val;
-          }, false, false, undefined, undefined, 0.5);
+          }, false, false, undefined, undefined, 0.5));
 
           // Gate Button Logic
           const gateBtn = container.querySelector('.gate-btn') as HTMLElement;
@@ -1008,16 +1439,16 @@ document.addEventListener('DOMContentLoaded', () => {
           else lfo.state = { rate: 1.0, depth: 0.5, type: 'sine' };
 
           const rateCg = container.querySelector('.rate-group') as HTMLElement;
-          new Knob(rateCg, 'RATE', 0.1, 50.0, lfo.state.rate, (val) => {
+          knobs.push(new Knob(rateCg, 'RATE', 0.1, 50.0, lfo.state.rate, (val) => {
             lfo.setRate(val);
             lfo.state.rate = val;
-          }, true, true, undefined, undefined, 1.0);
+          }, true, true, undefined, undefined, 1.0));
           
           const depthCg = container.querySelector('.depth-group') as HTMLElement;
-          new Knob(depthCg, 'DEPTH', 0.0, 1.0, lfo.state.depth, (val) => {
+          knobs.push(new Knob(depthCg, 'DEPTH', 0.0, 1.0, lfo.state.depth, (val) => {
             lfo.setDepth(val);
             lfo.state.depth = val;
-          }, false, false, undefined, undefined, 0.5);
+          }, false, false, undefined, undefined, 0.5));
 
           lfo.setRate(lfo.state.rate);
           lfo.setDepth(lfo.state.depth);
@@ -1031,6 +1462,70 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           lfo.start();
+        };
+        break;
+
+      case 'keyboard':
+        audioNode = new KeyboardModule();
+        title = 'Keyboard Trigger';
+        bodyHTML = `
+          <div class="ports" style="justify-content: flex-end; gap: 28px; padding-right: 6px;">
+            <div class="port-container">
+              <span class="label">NOTE</span>
+              <div class="port output cv" data-port-id="audio"></div>
+            </div>
+            <div class="port-container">
+              <span class="label">GATE</span>
+              <div class="port output cv" data-port-id="gate"></div>
+            </div>
+          </div>
+          <div class="keyboard-controls" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+            <div class="keyboard-octave-row">
+              <button class="control-btn keyboard-octave-down" style="height: 24px; min-width: 28px; padding: 0 8px;">-</button>
+              <span class="keyboard-octave-value">OCT: +0</span>
+              <button class="control-btn keyboard-octave-up" style="height: 24px; min-width: 28px; padding: 0 8px;">+</button>
+            </div>
+            <label class="keyboard-enabled-row">
+              <input type="checkbox" class="keyboard-enabled-toggle" checked />
+              <span>Enabled</span>
+            </label>
+            <div class="keyboard-help">Keys: A W S E D F G | Octave: Z/X</div>
+          </div>
+        `;
+
+        moduleSetup = (container) => {
+          const keyboard = audioNode as KeyboardModule;
+          if (state) keyboard.state = { ...state };
+          else keyboard.state = { octaveOffset: 0, baseMidi: 60, enabled: true };
+
+          const octaveValue = container.querySelector('.keyboard-octave-value') as HTMLElement;
+          const octDown = container.querySelector('.keyboard-octave-down') as HTMLButtonElement;
+          const octUp = container.querySelector('.keyboard-octave-up') as HTMLButtonElement;
+          const enabledToggle = container.querySelector('.keyboard-enabled-toggle') as HTMLInputElement;
+
+          const renderKeyboardUi = () => {
+            const signedOct = keyboard.octaveOffset >= 0 ? `+${keyboard.octaveOffset}` : String(keyboard.octaveOffset);
+            octaveValue.textContent = `OCT: ${signedOct}`;
+            enabledToggle.checked = keyboard.enabled;
+          };
+
+          octDown.addEventListener('click', () => {
+            keyboard.adjustOctave(-1);
+            renderKeyboardUi();
+          });
+          octUp.addEventListener('click', () => {
+            keyboard.adjustOctave(1);
+            renderKeyboardUi();
+          });
+          enabledToggle.addEventListener('change', () => {
+            keyboard.setEnabled(enabledToggle.checked);
+            if (!keyboard.enabled) {
+              keyboard.noteOff();
+            }
+            renderKeyboardUi();
+          });
+
+          renderKeyboardUi();
         };
         break;
 
@@ -1219,38 +1714,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Knobs: octave offset, gate length
           const octCg = container.querySelector('.oct-group') as HTMLElement;
-          new Knob(octCg, 'OCT', -3, 3, seq.octaveOffset, (val) => {
+          knobs.push(new Knob(octCg, 'OCT', -3, 3, seq.octaveOffset, (val) => {
             seq.octaveOffset = val;
-          }, false, false, undefined, 1, 0);
+          }, false, false, undefined, 1, 0));
 
           const gateCg = container.querySelector('.gate-len-group') as HTMLElement;
-          new Knob(gateCg, 'GATE', 0.05, 1.0, seq.gateLength, (val) => {
+          knobs.push(new Knob(gateCg, 'GATE', 0.05, 1.0, seq.gateLength, (val) => {
             seq.gateLength = val;
-          }, false, false, undefined, undefined, 0.5);
+          }, false, false, undefined, undefined, 0.5));
 
-          // Playhead animation
+          // Playhead animation — only runs while transport is playing
           let animFrameId: number | null = null;
           let lastHighlightedStep = -1;
 
           const updatePlayhead = () => {
             const step = seq.currentStep;
             if (step !== lastHighlightedStep) {
-              // Remove old highlight
               if (lastHighlightedStep >= 0) {
                 const oldCell = grid.children[lastHighlightedStep] as HTMLElement;
                 if (oldCell) oldCell.classList.remove('playing');
               }
-              // Add new highlight
               if (step >= 0 && step < grid.children.length) {
                 const newCell = grid.children[step] as HTMLElement;
                 if (newCell) newCell.classList.add('playing');
               }
               lastHighlightedStep = step;
             }
-            animFrameId = requestAnimationFrame(updatePlayhead);
+            if (transport.isPlaying) {
+              animFrameId = requestAnimationFrame(updatePlayhead);
+            } else {
+              animFrameId = null;
+            }
           };
 
-          animFrameId = requestAnimationFrame(updatePlayhead);
+          const startPlayhead = () => {
+            if (animFrameId === null) {
+              animFrameId = requestAnimationFrame(updatePlayhead);
+            }
+          };
+
+          const stopPlayhead = () => {
+            if (animFrameId !== null) {
+              cancelAnimationFrame(animFrameId);
+              animFrameId = null;
+            }
+            // Clear highlight
+            if (lastHighlightedStep >= 0) {
+              const oldCell = grid.children[lastHighlightedStep] as HTMLElement;
+              if (oldCell) oldCell.classList.remove('playing');
+              lastHighlightedStep = -1;
+            }
+          };
+
+          // Use seq.onStepChange to know when transport starts ticking
+          const origOnStepChange = seq.onStepChange;
+          seq.onStepChange = (step: number) => {
+            if (origOnStepChange) origOnStepChange(step);
+            if (step >= 0 && animFrameId === null) startPlayhead();
+          };
+          transport.onStop(stopPlayhead);
+
+          // Start if already playing
+          if (transport.isPlaying) startPlayhead();
 
           // Store dispose for cleanup
           const elAny = el as any;
@@ -1258,6 +1783,7 @@ document.addEventListener('DOMContentLoaded', () => {
           elAny._seqDispose = () => {
             if (originalDisposeUi) originalDisposeUi();
             if (animFrameId !== null) cancelAnimationFrame(animFrameId);
+            transport.offStop(stopPlayhead);
             closePicker();
           };
         };
@@ -1285,6 +1811,8 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
     const disposeUi = () => {
+      knobs.forEach(k => k.dispose());
+      knobs.length = 0;
       if ((el as any)._seqDispose) (el as any)._seqDispose();
     };
     const added = ws.addModule(audioNode, el, x, y, disposeUi);

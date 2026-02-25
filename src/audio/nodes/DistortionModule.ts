@@ -39,7 +39,7 @@ export class DistortionModule extends ModularNode {
     this.params.set('drive', this.inputGain.gain);
     this.params.set('mix', this.wetGain.gain);
 
-    this.state = {
+    this._state = {
       drive: 1.0,
       mix: 0.5,
       output: 0.8
@@ -73,6 +73,21 @@ export class DistortionModule extends ModularNode {
     const ctx = audioEngine.getContext();
     const next = Math.max(0, Math.min(2, val));
     this.outputGain.gain.setTargetAtTime(next, ctx.currentTime, 0.05);
+  }
+
+  public override pushStateToAudio(): void {
+    const s = this._state;
+    const ctx = audioEngine.getContext();
+    if (typeof s.drive === 'number') {
+      this.inputGain.gain.setValueAtTime(s.drive, ctx.currentTime);
+    }
+    if (typeof s.mix === 'number') {
+      this.wetGain.gain.setValueAtTime(s.mix, ctx.currentTime);
+      this.dryGain.gain.setValueAtTime(1 - s.mix, ctx.currentTime);
+    }
+    if (typeof s.output === 'number') {
+      this.outputGain.gain.setValueAtTime(s.output, ctx.currentTime);
+    }
   }
 
   public override destroy(): void {

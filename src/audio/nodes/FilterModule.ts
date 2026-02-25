@@ -46,6 +46,18 @@ export class FilterModule extends ModularNode {
     this.filter.type = type;
   }
   
+  public override pushStateToAudio(): void {
+    const s = this._state;
+    const ctx = audioEngine.getContext();
+    if (typeof s.cutoff === 'number') {
+      this.filter.frequency.setValueAtTime(s.cutoff, ctx.currentTime);
+    }
+    if (typeof s.res === 'number') {
+      this.filter.Q.setValueAtTime(s.res, ctx.currentTime);
+    }
+    if (s.type) this.filter.type = s.type;
+  }
+
   public override destroy(): void {
     this.cutoffMod.disconnect();
     this.resMod.disconnect();

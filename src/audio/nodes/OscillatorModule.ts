@@ -106,6 +106,20 @@ export class OscillatorModule extends ModularNode {
     }
   }
 
+  public override pushStateToAudio(): void {
+    const s = this._state;
+    if (s.type) this.osc.type = s.type;
+    if (s.mode) this.currentMode = s.mode;
+    if (typeof s.octave === 'number') this.octave = s.octave;
+    if (typeof s.semitone === 'number') this.semitone = s.semitone;
+    if (typeof s.cents === 'number') this.cents = s.cents;
+    if (typeof s.freq === 'number') this.rawFreq = s.freq;
+    if (typeof s.volume === 'number') {
+      this.gain.gain.setValueAtTime(s.volume, audioEngine.getContext().currentTime);
+    }
+    this.calculateFrequency();
+  }
+
   public override destroy(): void {
     this.stop();
     this.cvPitchMod.disconnect();
