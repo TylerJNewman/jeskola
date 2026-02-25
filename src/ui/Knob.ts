@@ -19,6 +19,8 @@ export class Knob {
   private step?: number;
   // Linear 0.0 to 1.0 tracker to prevent position jumping when toggling modes
   private currentLinearPosition: number = 0;
+  
+  private pendingAnimationFrame: number | null = null;
 
   constructor(
     container: HTMLElement, 
@@ -189,7 +191,14 @@ export class Knob {
         }
         
         this.updateVisuals();
-        this.onChange(this.currentValue);
+        
+        // Throttle the actual callback to 60fps to prevent overloading the Web Audio API param queues
+        if (this.pendingAnimationFrame === null) {
+          this.pendingAnimationFrame = requestAnimationFrame(() => {
+            this.onChange(this.currentValue);
+            this.pendingAnimationFrame = null;
+          });
+        }
       }
     };
 

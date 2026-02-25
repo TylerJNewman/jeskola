@@ -34,18 +34,12 @@ export class FilterModule extends ModularNode {
 
   public setFrequency(val: number): void {
     const ctx = audioEngine.getContext();
-    const now = ctx.currentTime;
-    this.filter.frequency.cancelScheduledValues(now);
-    this.filter.frequency.setValueAtTime(this.filter.frequency.value, now);
-    this.filter.frequency.setTargetAtTime(val, now, 0.05);
+    this.filter.frequency.setTargetAtTime(val, ctx.currentTime, 0.05);
   }
 
   public setResonance(val: number): void {
     const ctx = audioEngine.getContext();
-    const now = ctx.currentTime;
-    this.filter.Q.cancelScheduledValues(now);
-    this.filter.Q.setValueAtTime(this.filter.Q.value, now);
-    this.filter.Q.setTargetAtTime(val, now, 0.05);
+    this.filter.Q.setTargetAtTime(val, ctx.currentTime, 0.05);
   }
 
   public setType(type: BiquadFilterType): void {
