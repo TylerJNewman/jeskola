@@ -87,9 +87,10 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 12px;
   z-index: var(--z-ui);
   box-shadow: var(--shadow-sm);
+  gap: 12px;
 }
 
 .logo {
@@ -107,7 +108,24 @@ h3 {
 
 .controls {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  justify-content: flex-end;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+
+.controls::-webkit-scrollbar {
+  height: 6px;
+}
+
+.controls::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 6px;
 }
 
 /* Buttons */
@@ -125,6 +143,8 @@ h3 {
   align-items: center;
   gap: 6px;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .control-btn:hover {
@@ -397,6 +417,23 @@ select {
   outline: none;
 }
 
+.top-bar .select-preset {
+  width: 136px;
+  min-width: 120px;
+  max-width: 160px;
+  flex-shrink: 0;
+}
+
+#bpm-input {
+  flex-shrink: 0;
+}
+
+@media (max-width: 1200px) {
+  .logo h1 {
+    display: none;
+  }
+}
+
 /* Minimal Segmented Control (LIN / LOG) Dieter Rams Style */
 .mini-segment {
   display: inline-flex;
@@ -421,4 +458,135 @@ select {
   background: var(--panel-bg);
   color: var(--text-main);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Transport Controls */
+.transport-btn {
+  font-variant-numeric: tabular-nums;
+}
+
+.bpm-input {
+  width: 48px;
+  padding: 4px 6px;
+  font-family: var(--font-family);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--text-main);
+  outline: none;
+}
+
+.bpm-input:focus {
+  border-color: var(--accent-blue);
+}
+
+.bpm-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 8px;
+}
+
+/* Sequencer Step Grid */
+.seq-grid {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  max-width: 340px;
+}
+
+.seq-step {
+  width: 20px;
+  height: 32px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 7px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+  transition: background 0.1s, box-shadow 0.1s;
+  position: relative;
+}
+
+.seq-step:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.seq-step.active {
+  background: var(--accent-orange);
+  color: white;
+}
+
+.seq-step.active:hover {
+  background: #d04835;
+}
+
+.seq-step.playing {
+  box-shadow: 0 0 0 2px var(--accent-blue);
+  z-index: 1;
+}
+
+.seq-step:nth-child(4n+1) {
+  border-left: 2px solid rgba(0, 0, 0, 0.15);
+}
+
+.seq-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.seq-length-select {
+  font-family: var(--font-family);
+  font-size: 10px;
+  padding: 2px 4px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  background: white;
+  color: var(--text-main);
+}
+
+.seq-note-picker {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-bg);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 48px;
+}
+
+.seq-note-picker button {
+  font-family: var(--font-family);
+  font-size: 9px;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 2px;
+  color: var(--text-main);
+}
+
+.seq-note-picker button:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.seq-note-picker button.selected {
+  background: var(--accent-blue);
+  color: white;
 }

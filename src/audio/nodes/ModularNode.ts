@@ -13,7 +13,7 @@ export abstract class ModularNode {
   public params: Map<string, AudioParam | AudioNode> = new Map();
   
   // Stored parameter values for serialization
-  public state: Record<string, any> = {};
+  protected _state: Record<string, any> = {};
 
   constructor(type: string) {
     this.id = crypto.randomUUID();
@@ -28,21 +28,47 @@ export abstract class ModularNode {
     return this.outputNode;
   }
 
+  public get state(): Record<string, any> {
+    return this._state;
+  }
+
+  public set state(value: Record<string, any>) {
+    this._state = value ?? {};
+  }
+
+  /**
+   * Returns the audio node for a given output port.
+   * Subclasses can override to provide multiple distinct outputs.
+   */
+  public getOutputForPort(portId: string): AudioNode | null {
+    if (!portId || portId === 'audio') return this.outputNode;
+    const param = this.params.get(portId);
+    if (param instanceof AudioNode) return param;
+    return this.outputNode;
+  }
+
+  /**
+   * Optional gate signal interface for modules that respond to gate events.
+   * Implemented by ADSR and similar envelope modules.
+   */
+  public onGateSignal?(gateOn: boolean, time: number): void;
+
   /**
    * Connects this module's output to another module's input.
    */
-  public connect(destination: ModularNode, targetPortId?: string): void {
-    if (!this.outputNode) return;
+  public connect(destination: ModularNode, targetPortId?: string, sourcePortId?: string): void {
+    const output = sourcePortId ? this.getOutputForPort(sourcePortId) : this.outputNode;
+    if (!output) return;
 
     if (targetPortId && targetPortId !== 'audio' && destination.params.has(targetPortId)) {
       const paramNode = destination.params.get(targetPortId)!;
-      this.outputNode.connect(paramNode as any);
-      console.log(`Connected ${this.type} to ${destination.type} param ${targetPortId}`);
+      output.connect(paramNode as any);
+      console.log(`Connected ${this.type}:${sourcePortId || 'audio'} to ${destination.type} param ${targetPortId}`);
     } else {
       const destInput = destination.getInputNode();
       if (destInput) {
-        this.outputNode.connect(destInput);
-        console.log(`Connected ${this.type} to ${destination.type}`);
+        output.connect(destInput);
+        console.log(`Connected ${this.type}:${sourcePortId || 'audio'} to ${destination.type}`);
       } else {
         console.warn(`Cannot connect ${this.type} to ${destination.type} - missing input node`);
       }
@@ -62,19 +88,20 @@ export abstract class ModularNode {
   /**
    * Disconnects this module's output from another module's input.
    */
-  public disconnect(destination: ModularNode, targetPortId?: string): void {
-    if (!this.outputNode) return;
+  public disconnect(destination: ModularNode, targetPortId?: string, sourcePortId?: string): void {
+    const output = sourcePortId ? this.getOutputForPort(sourcePortId) : this.outputNode;
+    if (!output) return;
 
     if (targetPortId && targetPortId !== 'audio' && destination.params.has(targetPortId)) {
       const paramNode = destination.params.get(targetPortId)!;
       try {
-        this.outputNode.disconnect(paramNode as any);
+        output.disconnect(paramNode as any);
       } catch(e) {}
     } else {
       const destInput = destination.getInputNode();
       if (destInput) {
         try {
-          this.outputNode.disconnect(destInput);
+          output.disconnect(destInput);
         } catch(e) {}
       }
     }

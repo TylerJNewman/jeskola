@@ -11,7 +11,25 @@ import { MasterNode } from './audio/nodes/MasterNode';
 import { ModularNode } from './audio/nodes/ModularNode';
 import { Workspace } from './ui/Workspace';
 import { Knob } from './ui/Knob';
-import { PRESETS, PRESET_LABELS, PRESET_ORDER } from './presets';
+import {
+  PRESETS,
+  PRESET_LABELS,
+  PRESET_ORDER,
+  RECIPES,
+  RECIPE_LABELS,
+  RECIPE_ORDER,
+  RECIPE_DESCRIPTIONS,
+  RECIPE_MORPH_LABELS,
+  STACK_BASE_ORDER,
+  STACK_BASE_LABELS,
+  STACK_MODIFIER_ORDER,
+  STACK_MODIFIER_LABELS,
+  buildStackedPreset,
+  buildRecipePreset
+} from './presets';
+import { transport } from './audio/Transport';
+import { SequencerModule } from './audio/nodes/SequencerModule';
+import { NO_VALUE, midiToNoteName } from './audio/sequencer/types';
 
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('btn-master-play') as HTMLButtonElement;
@@ -168,14 +186,246 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  const stackBaseSelect = document.createElement('select');
+  stackBaseSelect.className = 'select-preset';
+  stackBaseSelect.style.marginRight = '8px';
+  stackBaseSelect.style.padding = '4px';
+  stackBaseSelect.style.backgroundColor = 'var(--panel-bg)';
+  stackBaseSelect.style.color = 'var(--text-light)';
+  stackBaseSelect.style.border = '1px solid var(--border-color)';
+
+  STACK_BASE_ORDER.forEach((key) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = STACK_BASE_LABELS[key] || key;
+    stackBaseSelect.appendChild(opt);
+  });
+
+  const createStackModifierSelect = (title: string) => {
+    const sel = document.createElement('select');
+    sel.className = 'select-preset';
+    sel.title = title;
+    sel.style.marginRight = '8px';
+    sel.style.padding = '4px';
+    sel.style.backgroundColor = 'var(--panel-bg)';
+    sel.style.color = 'var(--text-light)';
+    sel.style.border = '1px solid var(--border-color)';
+
+    const emptyOpt = document.createElement('option');
+    emptyOpt.value = '';
+    emptyOpt.textContent = title;
+    sel.appendChild(emptyOpt);
+
+    STACK_MODIFIER_ORDER.forEach((key) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = STACK_MODIFIER_LABELS[key] || key;
+      sel.appendChild(opt);
+    });
+    return sel;
+  };
+
+  const stackModifierSelectA = createStackModifierSelect('Modifier 1');
+  const stackModifierSelectB = createStackModifierSelect('Modifier 2');
+  const stackModifierSelectC = createStackModifierSelect('Modifier 3');
+
+  const loadStackBtn = document.createElement('button');
+  loadStackBtn.className = 'control-btn';
+  loadStackBtn.innerHTML = '<span>LOAD STACK</span>';
+  loadStackBtn.style.marginRight = '8px';
+  loadStackBtn.addEventListener('click', () => {
+    const ws = getWorkspace();
+    if (!ws) return;
+
+    const baseKey = stackBaseSelect.value;
+    const modifierKeysRaw = [
+      stackModifierSelectA.value,
+      stackModifierSelectB.value,
+      stackModifierSelectC.value
+    ].filter((v) => v.length > 0);
+    const modifierKeys = Array.from(new Set(modifierKeysRaw));
+
+    let stacked;
+    try {
+      stacked = buildStackedPreset(baseKey, modifierKeys);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown stack build error';
+      window.alert(`Could not build stack: ${message}`);
+      return;
+    }
+
+    ensureInitialized().then(() => {
+      ws.importState(stacked.json);
+    });
+  });
+
+  const recipeSelect = document.createElement('select');
+  recipeSelect.className = 'select-preset';
+  recipeSelect.style.marginRight = '8px';
+  recipeSelect.style.padding = '4px';
+  recipeSelect.style.backgroundColor = 'var(--panel-bg)';
+  recipeSelect.style.color = 'var(--text-light)';
+  recipeSelect.style.border = '1px solid var(--border-color)';
+
+  const defaultRecipeOpt = document.createElement('option');
+  defaultRecipeOpt.value = '';
+  defaultRecipeOpt.textContent = 'Select a Recipe...';
+  recipeSelect.appendChild(defaultRecipeOpt);
+
+  RECIPE_ORDER.forEach((key) => {
+    if (!RECIPES[key]) return;
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = RECIPE_LABELS[key] || key;
+    opt.title = RECIPE_DESCRIPTIONS[key] || '';
+    recipeSelect.appendChild(opt);
+  });
+
+  const refreshRecipeDescription = () => {
+    const key = recipeSelect.value;
+    recipeSelect.title = key ? (RECIPE_DESCRIPTIONS[key] || '') : '';
+  };
+  recipeSelect.addEventListener('change', refreshRecipeDescription);
+  refreshRecipeDescription();
+
+  const loadRecipeBtn = document.createElement('button');
+  loadRecipeBtn.className = 'control-btn';
+  loadRecipeBtn.innerHTML = '<span>LOAD RECIPE</span>';
+  loadRecipeBtn.style.marginRight = '8px';
+  const recipeMorphWrap = document.createElement('label');
+  recipeMorphWrap.style.display = 'inline-flex';
+  recipeMorphWrap.style.alignItems = 'center';
+  recipeMorphWrap.style.gap = '6px';
+  recipeMorphWrap.style.marginRight = '8px';
+
+  const recipeMorphText = document.createElement('span');
+  recipeMorphText.style.fontSize = '11px';
+  recipeMorphText.textContent = 'Morph';
+
+  const recipeMorphSlider = document.createElement('input');
+  recipeMorphSlider.type = 'range';
+  recipeMorphSlider.min = '0';
+  recipeMorphSlider.max = '100';
+  recipeMorphSlider.step = '1';
+  recipeMorphSlider.value = '0';
+  recipeMorphSlider.style.width = '140px';
+  recipeMorphSlider.disabled = true;
+
+  recipeMorphWrap.appendChild(recipeMorphText);
+  recipeMorphWrap.appendChild(recipeMorphSlider);
+
+  let activeRecipeKey = '';
+  let morphTimer: number | null = null;
+
+  const updateRecipeMorphUi = () => {
+    const hasRecipe = !!recipeSelect.value;
+    recipeMorphSlider.disabled = !hasRecipe;
+    const key = recipeSelect.value;
+    recipeMorphText.textContent = key ? (RECIPE_MORPH_LABELS[key] || 'Morph') : 'Morph';
+  };
+
+  const applyActiveRecipeMorph = () => {
+    const ws = getWorkspace();
+    if (!ws || !activeRecipeKey) return;
+    const morphAmount = Number(recipeMorphSlider.value) / 100;
+    try {
+      const built = buildRecipePreset(activeRecipeKey, morphAmount);
+      ws.importState(built.json);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown recipe morph error';
+      window.alert(`Could not morph recipe: ${message}`);
+    }
+  };
+
+  recipeMorphSlider.addEventListener('input', () => {
+    if (!activeRecipeKey) return;
+    if (morphTimer !== null) {
+      window.clearTimeout(morphTimer);
+    }
+    morphTimer = window.setTimeout(() => {
+      applyActiveRecipeMorph();
+      morphTimer = null;
+    }, 50);
+  });
+
+  recipeSelect.addEventListener('change', () => {
+    if (!recipeSelect.value) {
+      activeRecipeKey = '';
+      recipeMorphSlider.value = '0';
+    }
+    updateRecipeMorphUi();
+  });
+  updateRecipeMorphUi();
+
+  loadRecipeBtn.addEventListener('click', () => {
+    const val = recipeSelect.value;
+    if (val && RECIPES[val]) {
+      const ws = getWorkspace();
+      if (ws) {
+        activeRecipeKey = val;
+        ensureInitialized().then(() => {
+          applyActiveRecipeMorph();
+        });
+      }
+    }
+  });
+
+  // --- TRANSPORT CONTROLS ---
+  const transportPlayBtn = document.createElement('button');
+  transportPlayBtn.className = 'control-btn transport-btn';
+  transportPlayBtn.innerHTML = '<span>&#9654; PLAY</span>';
+  transportPlayBtn.style.marginRight = '4px';
+  transportPlayBtn.addEventListener('click', async () => {
+    if (!initialized) await ensureInitialized();
+    if (transport.isPlaying) {
+      transport.stop();
+      transportPlayBtn.innerHTML = '<span>&#9654; PLAY</span>';
+      transportPlayBtn.classList.remove('primary');
+    } else {
+      transport.play();
+      transportPlayBtn.innerHTML = '<span>&#9632; STOP</span>';
+      transportPlayBtn.classList.add('primary');
+    }
+  });
+
+  const bpmInput = document.createElement('input');
+  bpmInput.type = 'number';
+  bpmInput.id = 'bpm-input';
+  bpmInput.className = 'bpm-input';
+  bpmInput.value = '120';
+  bpmInput.min = '20';
+  bpmInput.max = '300';
+  bpmInput.title = 'BPM';
+  bpmInput.addEventListener('change', () => {
+    transport.setBpm(parseInt(bpmInput.value, 10) || 120);
+  });
+  bpmInput.addEventListener('input', () => {
+    transport.setBpm(parseInt(bpmInput.value, 10) || 120);
+  });
+
+  const bpmLabel = document.createElement('span');
+  bpmLabel.className = 'bpm-label';
+  bpmLabel.textContent = 'BPM';
+
   // Prepend buttons to controls area
   const controlsDiv = document.querySelector('.controls');
   if (controlsDiv) {
     controlsDiv.insertBefore(presetSelect, startBtn);
     controlsDiv.insertBefore(loadPresetBtn, startBtn);
+    controlsDiv.insertBefore(stackBaseSelect, startBtn);
+    controlsDiv.insertBefore(stackModifierSelectA, startBtn);
+    controlsDiv.insertBefore(stackModifierSelectB, startBtn);
+    controlsDiv.insertBefore(stackModifierSelectC, startBtn);
+    controlsDiv.insertBefore(loadStackBtn, startBtn);
+    controlsDiv.insertBefore(recipeSelect, startBtn);
+    controlsDiv.insertBefore(loadRecipeBtn, startBtn);
+    controlsDiv.insertBefore(recipeMorphWrap, startBtn);
     controlsDiv.insertBefore(saveBtn, startBtn);
     controlsDiv.insertBefore(loadBtn, startBtn);
     controlsDiv.appendChild(loadFileBtn);
+    controlsDiv.insertBefore(transportPlayBtn, startBtn);
+    controlsDiv.insertBefore(bpmInput, startBtn);
+    controlsDiv.insertBefore(bpmLabel, startBtn);
   }
 
   function createMasterModule(ws: Workspace) {
@@ -663,6 +913,236 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         break;
 
+      case 'sequencer': {
+        audioNode = new SequencerModule();
+        title = 'Sequencer';
+        bodyHTML = `
+          <div class="ports" style="justify-content: flex-end; gap: 12px;">
+            <div class="port-container">
+              <span class="label">NOTE</span>
+              <div class="port output cv" data-port-id="audio"></div>
+            </div>
+            <div class="port-container">
+              <span class="label">GATE</span>
+              <div class="port output cv" data-port-id="gate"></div>
+            </div>
+          </div>
+          <div class="seq-controls">
+            <span class="label" style="font-size:9px;">STEPS</span>
+            <select class="seq-length-select">
+              <option value="4">4</option>
+              <option value="8">8</option>
+              <option value="16" selected>16</option>
+              <option value="32">32</option>
+            </select>
+          </div>
+          <div class="seq-grid"></div>
+          <div style="display: flex; gap: 12px; justify-content: center; margin-top: 8px;">
+            <div class="control-group oct-group"></div>
+            <div class="control-group gate-len-group"></div>
+          </div>
+        `;
+
+        moduleSetup = (container) => {
+          const seq = audioNode as SequencerModule;
+          if (state) seq.state = { ...state };
+
+          const grid = container.querySelector('.seq-grid') as HTMLElement;
+          const lengthSelect = container.querySelector('.seq-length-select') as HTMLSelectElement;
+
+          // Set the length select to match state
+          lengthSelect.value = String(seq.pattern.length);
+
+          let activePicker: HTMLElement | null = null;
+
+          function closePicker() {
+            if (activePicker) {
+              activePicker.remove();
+              activePicker = null;
+            }
+          }
+
+          function renderGrid() {
+            closePicker();
+            grid.innerHTML = '';
+            for (let i = 0; i < seq.pattern.length; i++) {
+              const step = seq.pattern.steps[i];
+              const cell = document.createElement('div');
+              cell.className = 'seq-step' + (step.gate ? ' active' : '');
+              cell.setAttribute('data-step', String(i));
+
+              if (step.gate && step.note !== NO_VALUE) {
+                cell.textContent = midiToNoteName(step.note);
+              }
+
+              // Left click: toggle gate
+              cell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                closePicker();
+                if (step.gate) {
+                  step.gate = false;
+                  step.note = NO_VALUE;
+                  cell.classList.remove('active');
+                  cell.textContent = '';
+                } else {
+                  step.gate = true;
+                  step.note = step.note === NO_VALUE ? 60 : step.note; // Default C4
+                  step.velocity = 1.0;
+                  cell.classList.add('active');
+                  cell.textContent = midiToNoteName(step.note);
+                }
+              });
+
+              // Right click: note picker
+              cell.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!step.gate) return;
+                closePicker();
+                showNotePicker(cell, step, i);
+              });
+
+              // Scroll wheel: change note
+              cell.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!step.gate) return;
+                const delta = e.deltaY < 0 ? 1 : -1;
+                step.note = Math.max(0, Math.min(127, (step.note === NO_VALUE ? 60 : step.note) + delta));
+                cell.textContent = midiToNoteName(step.note);
+              });
+
+              grid.appendChild(cell);
+            }
+          }
+
+          function showNotePicker(cell: HTMLElement, step: typeof seq.pattern.steps[0], _stepIndex: number) {
+            const picker = document.createElement('div');
+            picker.className = 'seq-note-picker';
+
+            const currentNote = step.note === NO_VALUE ? 60 : step.note;
+            const currentOctave = Math.floor(currentNote / 12) - 1;
+            const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+            // Octave selector row
+            const octRow = document.createElement('div');
+            octRow.style.cssText = 'display:flex; gap:2px; margin-bottom:4px; justify-content:center;';
+            const octDown = document.createElement('button');
+            octDown.textContent = '-';
+            octDown.style.cssText = 'width:18px; font-size:10px;';
+            const octLabel = document.createElement('span');
+            octLabel.textContent = `Oct ${currentOctave}`;
+            octLabel.style.cssText = 'font-size:8px; display:flex; align-items:center; color:var(--text-muted);';
+            const octUp = document.createElement('button');
+            octUp.textContent = '+';
+            octUp.style.cssText = 'width:18px; font-size:10px;';
+
+            let pickerOctave = currentOctave;
+            const updatePicker = () => {
+              octLabel.textContent = `Oct ${pickerOctave}`;
+              picker.querySelectorAll('.note-btn').forEach((btn) => {
+                const midi = parseInt(btn.getAttribute('data-midi') || '0');
+                const newMidi = (pickerOctave + 1) * 12 + (midi % 12);
+                btn.setAttribute('data-midi', String(newMidi));
+                if (newMidi === step.note) btn.classList.add('selected');
+                else btn.classList.remove('selected');
+              });
+            };
+
+            octDown.addEventListener('click', (e) => { e.stopPropagation(); pickerOctave = Math.max(-1, pickerOctave - 1); updatePicker(); });
+            octUp.addEventListener('click', (e) => { e.stopPropagation(); pickerOctave = Math.min(9, pickerOctave + 1); updatePicker(); });
+
+            octRow.appendChild(octDown);
+            octRow.appendChild(octLabel);
+            octRow.appendChild(octUp);
+            picker.appendChild(octRow);
+
+            // Note buttons
+            for (let n = 11; n >= 0; n--) {
+              const midi = (pickerOctave + 1) * 12 + n;
+              const btn = document.createElement('button');
+              btn.className = 'note-btn' + (midi === currentNote ? ' selected' : '');
+              btn.textContent = noteNames[n];
+              btn.setAttribute('data-midi', String(midi));
+              btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const midiVal = parseInt(btn.getAttribute('data-midi') || '60');
+                step.note = Math.max(0, Math.min(127, midiVal));
+                cell.textContent = midiToNoteName(step.note);
+                closePicker();
+              });
+              picker.appendChild(btn);
+            }
+
+            cell.style.position = 'relative';
+            cell.appendChild(picker);
+            activePicker = picker;
+
+            // Close picker on outside click
+            const closeOnOutside = (e: MouseEvent) => {
+              if (!picker.contains(e.target as Node) && e.target !== cell) {
+                closePicker();
+                document.removeEventListener('click', closeOnOutside);
+              }
+            };
+            setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
+          }
+
+          renderGrid();
+
+          // Length change
+          lengthSelect.addEventListener('change', () => {
+            seq.setPatternLength(parseInt(lengthSelect.value, 10));
+            renderGrid();
+          });
+
+          // Knobs: octave offset, gate length
+          const octCg = container.querySelector('.oct-group') as HTMLElement;
+          new Knob(octCg, 'OCT', -3, 3, seq.octaveOffset, (val) => {
+            seq.octaveOffset = val;
+          }, false, false, undefined, 1, 0);
+
+          const gateCg = container.querySelector('.gate-len-group') as HTMLElement;
+          new Knob(gateCg, 'GATE', 0.05, 1.0, seq.gateLength, (val) => {
+            seq.gateLength = val;
+          }, false, false, undefined, undefined, 0.5);
+
+          // Playhead animation
+          let animFrameId: number | null = null;
+          let lastHighlightedStep = -1;
+
+          const updatePlayhead = () => {
+            const step = seq.currentStep;
+            if (step !== lastHighlightedStep) {
+              // Remove old highlight
+              if (lastHighlightedStep >= 0) {
+                const oldCell = grid.children[lastHighlightedStep] as HTMLElement;
+                if (oldCell) oldCell.classList.remove('playing');
+              }
+              // Add new highlight
+              if (step >= 0 && step < grid.children.length) {
+                const newCell = grid.children[step] as HTMLElement;
+                if (newCell) newCell.classList.add('playing');
+              }
+              lastHighlightedStep = step;
+            }
+            animFrameId = requestAnimationFrame(updatePlayhead);
+          };
+
+          animFrameId = requestAnimationFrame(updatePlayhead);
+
+          // Store dispose for cleanup
+          const elAny = el as any;
+          const originalDisposeUi = elAny._seqDispose;
+          elAny._seqDispose = () => {
+            if (originalDisposeUi) originalDisposeUi();
+            if (animFrameId !== null) cancelAnimationFrame(animFrameId);
+            closePicker();
+          };
+        };
+        break;
+      }
+
       default:
         return false;
     }
@@ -683,7 +1163,10 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    const added = ws.addModule(audioNode, el, x, y);
+    const disposeUi = () => {
+      if ((el as any)._seqDispose) (el as any)._seqDispose();
+    };
+    const added = ws.addModule(audioNode, el, x, y, disposeUi);
     if (!added) {
       audioNode.destroy();
       return false;

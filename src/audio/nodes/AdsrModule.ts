@@ -33,55 +33,42 @@ export class AdsrModule extends ModularNode {
   public setRelease(val: number): void { this.state.release = val; }
 
   public triggerAttack(): void {
-    const ctx = audioEngine.getContext();
-    const now = ctx.currentTime;
-    
-    // Cancel any scheduled releases
-    this.cvSource.offset.cancelScheduledValues(now);
-    
-    // We want to avoid clicks if triggered mid-release
-    const currentValue = this.cvSource.offset.value;
-    this.cvSource.offset.setValueAtTime(currentValue, now);
-    
-    // Attack phase: Ramp up to 1.0 linearly
-    // Make sure attack isn't exactly 0 to avoid errors 
-    const aTime = Math.max(0.01, this.state.attack);
-    this.cvSource.offset.linearRampToValueAtTime(1.0, now + aTime);
-    
-    // Decay phase: Drop to sustain level
-    // Web Audio exponential ramps get angry if you target exactly 0
-    const dTime = Math.max(0.01, this.state.decay);
-    
-    // Instead of exponentialRampToValueAtTime, use setTargetAtTime which handles 0 safely
-    // and produces a natural exponential curve. The time constant should be decay / 3
-    // because setTargetAtTime takes ~3 time constants to reach 95% of target.
-    this.cvSource.offset.setTargetAtTime(this.state.sustain, now + aTime, dTime / 3);
+    this.triggerAttackAt(audioEngine.getContext().currentTime);
   }
 
   public triggerRelease(): void {
-    const ctx = audioEngine.getContext();
-    const now = ctx.currentTime;
-    
-    this.cvSource.offset.cancelScheduledValues(now);
-    
-    // We want to avoid clicks if triggered mid-release
-    // Also we must read the value at 'now' explicitly to ramp down smoothly
-    // Wait, let's use a small timeout to get the actual value, or let Web Audio handle it
-    // cancelAndHoldAtTime might be better if supported, else just use setTargetAtTime
+    this.triggerReleaseAt(audioEngine.getContext().currentTime);
+  }
+
+  public triggerAttackAt(time: number): void {
+    this.cvSource.offset.cancelScheduledValues(time);
+    this.cvSource.offset.setValueAtTime(this.cvSource.offset.value, time);
+
+    const aTime = Math.max(0.01, this.state.attack);
+    this.cvSource.offset.linearRampToValueAtTime(1.0, time + aTime);
+
+    const dTime = Math.max(0.01, this.state.decay);
+    this.cvSource.offset.setTargetAtTime(this.state.sustain, time + aTime, dTime / 3);
+  }
+
+  public triggerReleaseAt(time: number): void {
+    this.cvSource.offset.cancelScheduledValues(time);
+
     try {
-      // Use cancelAndHoldAtTime if available to avoid clicks
       if (typeof this.cvSource.offset.cancelAndHoldAtTime === 'function') {
-        this.cvSource.offset.cancelAndHoldAtTime(now);
+        this.cvSource.offset.cancelAndHoldAtTime(time);
       } else {
-        const currentValue = this.cvSource.offset.value;
-        this.cvSource.offset.setValueAtTime(currentValue, now);
+        this.cvSource.offset.setValueAtTime(this.cvSource.offset.value, time);
       }
     } catch(e) { /* fallback */ }
-    
-    // Release phase: Drop to 0 exponentially
+
     const rTime = Math.max(0.01, this.state.release);
-    // setTargetAtTime can safely target exact 0
-    this.cvSource.offset.setTargetAtTime(0, now, rTime / 3);
+    this.cvSource.offset.setTargetAtTime(0, time, rTime / 3);
+  }
+
+  public onGateSignal(gateOn: boolean, time: number): void {
+    if (gateOn) this.triggerAttackAt(time);
+    else this.triggerReleaseAt(time);
   }
 
   public override destroy(): void {

@@ -1,4 +1,5 @@
 import { ModularNode } from '../audio/nodes/ModularNode';
+import { transport } from '../audio/Transport';
 
 export interface UIConnection {
   sourceModuleId: string;
@@ -200,7 +201,14 @@ export class Workspace {
     const targetData = this.modules.get(targetModuleId);
 
     if (sourceData && targetData) {
-      sourceData.audio.connect(targetData.audio, targetPortId);
+      sourceData.audio.connect(targetData.audio, targetPortId, sourcePortId);
+
+      // Register gate targets for sequencer -> ADSR connections
+      if (sourcePortId === 'gate' && typeof targetData.audio.onGateSignal === 'function') {
+        if (typeof (sourceData.audio as any).addGateTarget === 'function') {
+          (sourceData.audio as any).addGateTarget(targetData.audio);
+        }
+      }
 
       const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       svgPath.classList.add('cable');
@@ -238,7 +246,12 @@ export class Workspace {
     const targetData = this.modules.get(conn.targetModuleId);
 
     if (sourceData && targetData) {
-      sourceData.audio.disconnect(targetData.audio, conn.targetPortId);
+      sourceData.audio.disconnect(targetData.audio, conn.targetPortId, conn.sourcePortId);
+
+      // Deregister gate targets
+      if (conn.sourcePortId === 'gate' && typeof (sourceData.audio as any).removeGateTarget === 'function') {
+        (sourceData.audio as any).removeGateTarget(targetData.audio);
+      }
     }
 
     conn.svgPath.remove();
@@ -451,7 +464,11 @@ export class Workspace {
       if (c.targetModuleId === id && c.sourceModuleId !== id) {
         const sourceData = this.modules.get(c.sourceModuleId);
         if (sourceData) {
-          sourceData.audio.disconnect(data.audio, c.targetPortId);
+          sourceData.audio.disconnect(data.audio, c.targetPortId, c.sourcePortId);
+          // Deregister gate targets
+          if (c.sourcePortId === 'gate' && typeof (sourceData.audio as any).removeGateTarget === 'function') {
+            (sourceData.audio as any).removeGateTarget(data.audio);
+          }
         }
       }
       c.svgPath.remove();
@@ -463,6 +480,10 @@ export class Workspace {
 
   public exportState(): string {
     const state = {
+      transport: {
+        bpm: transport.bpm,
+        ticksPerBeat: transport.ticksPerBeat
+      },
       modules: Array.from(this.modules.values())
         .filter(data => data.audio.id !== 'master')
         .map(data => ({
@@ -576,6 +597,22 @@ export class Workspace {
       const message = e instanceof Error ? e.message : 'unknown parse error';
       warnings.push(`Failed to parse patch JSON: ${message}`);
       return { modulesCreated: 0, connectionsCreated: 0, warnings };
+    }
+
+    // Restore transport state if present (backward compatible)
+    if (isObject(parsed) && isObject((parsed as any).transport)) {
+      const t = (parsed as any).transport;
+      if (typeof t.bpm === 'number') {
+        transport.setBpm(t.bpm);
+        const bpmInput = document.getElementById('bpm-input') as HTMLInputElement | null;
+        if (bpmInput) bpmInput.value = String(t.bpm);
+      }
+      if (typeof t.ticksPerBeat === 'number') transport.setTicksPerBeat(t.ticksPerBeat);
+    }
+
+    // Stop transport before clearing modules to avoid dangling callbacks
+    if (transport.isPlaying) {
+      transport.stop();
     }
 
     const normalized = this.normalizePatchState(parsed);

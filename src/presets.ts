@@ -32,6 +32,29 @@ type PresetModifier = {
   };
 };
 
+export type StackedPresetResult = {
+  key: string;
+  label: string;
+  json: string;
+};
+
+type RecipeModuleStateOverride = {
+  moduleId: string;
+  state: Record<string, any>;
+};
+
+type RecipeDef = {
+  name: string;
+  description: string;
+  baseKey: string;
+  modifierKeys: string[];
+  moduleStateOverrides?: RecipeModuleStateOverride[];
+  morph?: {
+    label: string;
+    moduleStateAtMax: RecipeModuleStateOverride[];
+  };
+};
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -44,6 +67,15 @@ function slugify(name: string): string {
 
 function clonePatch<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
+}
+
+function parsePatchJson(json: string): PatchState {
+  return JSON.parse(json) as PatchState;
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
 function assertUniqueModuleIds(patch: PatchState, label: string): void {
@@ -647,3 +679,302 @@ export const PRESET_LABELS: Record<string, string> = Object.fromEntries(
 export const PRESETS: Record<string, string> = Object.fromEntries(
   ALL_PRESETS.map((p) => [slugify(p.name), JSON.stringify(p.patch)])
 );
+
+export const STACK_BASE_ORDER: string[] = BASE_PRESETS.map((p) => slugify(p.name));
+export const STACK_BASE_LABELS: Record<string, string> = Object.fromEntries(
+  BASE_PRESETS.map((p) => [slugify(p.name), p.name])
+);
+export const STACK_MODIFIER_ORDER: string[] = PRESET_MODIFIERS.map((m) => slugify(m.name));
+export const STACK_MODIFIER_LABELS: Record<string, string> = Object.fromEntries(
+  PRESET_MODIFIERS.map((m) => [slugify(m.name), m.name])
+);
+
+function getBaseByKey(baseKey: string): PresetDef {
+  const baseLabel = STACK_BASE_LABELS[baseKey];
+  if (!baseLabel) {
+    throw new Error(`Unknown base preset key: ${baseKey}`);
+  }
+
+  return getBase(baseLabel);
+}
+
+function getModifierByKey(modifierKey: string): PresetModifier {
+  const modifierLabel = STACK_MODIFIER_LABELS[modifierKey];
+  if (!modifierLabel) {
+    throw new Error(`Unknown modifier key: ${modifierKey}`);
+  }
+
+  return getModifier(modifierLabel);
+}
+
+export function buildStackedPreset(baseKey: string, modifierKeys: string[]): StackedPresetResult {
+  const basePreset = getBaseByKey(baseKey);
+  const seenKeys = new Set<string>();
+  const modifierDefs: PresetModifier[] = [];
+
+  for (const modifierKey of modifierKeys) {
+    if (seenKeys.has(modifierKey)) {
+      throw new Error(`Duplicate modifier in stack: ${modifierKey}`);
+    }
+    seenKeys.add(modifierKey);
+    modifierDefs.push(getModifierByKey(modifierKey));
+  }
+
+  let stackedPreset: PresetDef = {
+    name: basePreset.name,
+    patch: clonePatch(basePreset.patch),
+    tags: [...(basePreset.tags || [])]
+  };
+
+  for (const modifier of modifierDefs) {
+    const nextName = `${stackedPreset.name} + ${modifier.name}`;
+    stackedPreset = composePreset(stackedPreset, modifier, nextName);
+  }
+
+  return {
+    key: slugify(stackedPreset.name),
+    label: stackedPreset.name,
+    json: JSON.stringify(stackedPreset.patch)
+  };
+}
+
+function applyModuleStateOverrides(base: PatchState, overrides: RecipeModuleStateOverride[], label: string): PatchState {
+  const patch = clonePatch(base);
+
+  for (const override of overrides) {
+    const mod = patch.modules.find((m) => m.id === override.moduleId);
+    if (!mod) {
+      throw new Error(`${label}: unknown module for override ${override.moduleId}`);
+    }
+
+    mod.state = {
+      ...mod.state,
+      ...override.state
+    };
+  }
+
+  validatePatch(patch, label);
+  return patch;
+}
+
+function applyRecipeMorph(base: PatchState, atMax: RecipeModuleStateOverride[], amount: number, label: string): PatchState {
+  const patch = clonePatch(base);
+  const t = clamp01(amount);
+  if (t <= 0) return patch;
+
+  for (const target of atMax) {
+    const mod = patch.modules.find((m) => m.id === target.moduleId);
+    if (!mod) {
+      throw new Error(`${label}: unknown morph module ${target.moduleId}`);
+    }
+
+    for (const [key, targetValue] of Object.entries(target.state)) {
+      const currentValue = (mod.state as Record<string, any>)[key];
+      if (typeof currentValue === 'number' && typeof targetValue === 'number' && Number.isFinite(currentValue) && Number.isFinite(targetValue)) {
+        (mod.state as Record<string, any>)[key] = currentValue + (targetValue - currentValue) * t;
+      } else if (t >= 0.5) {
+        (mod.state as Record<string, any>)[key] = targetValue;
+      }
+    }
+  }
+
+  validatePatch(patch, label);
+  return patch;
+}
+
+const RECIPE_DEFS: RecipeDef[] = [
+  {
+    name: 'Classic Acid Bassline',
+    description: 'Subtractive acid voice with envelope pump on amp and high-resonance filter drive.',
+    baseKey: 'acid-drive',
+    modifierKeys: ['envelope-pump'],
+    moduleStateOverrides: [
+      { moduleId: 'drive-osc', state: { octave: -1, semitone: 0, cents: 0, mode: 'pitch', type: 'sawtooth' } },
+      { moduleId: 'drive-dist', state: { drive: 8.4, mix: 0.72, output: 0.76, driveLog: true } },
+      { moduleId: 'drive-filter', state: { cutoff: 420, res: 12.4, type: 'lowpass', cutoffLog: true } },
+      { moduleId: 'mod-envelope-pump-gain', state: { level: 0 } },
+      { moduleId: 'mod-envelope-pump-adsr', state: { attack: 0.005, decay: 0.16, sustain: 0.03, release: 0.1 } }
+    ],
+    morph: {
+      label: 'Acid Intensity',
+      moduleStateAtMax: [
+        { moduleId: 'drive-dist', state: { drive: 12.5, mix: 0.84, output: 0.72 } },
+        { moduleId: 'drive-filter', state: { cutoff: 980, res: 15.5 } },
+        { moduleId: 'mod-envelope-pump-adsr', state: { decay: 0.22, sustain: 0.08, release: 0.14 } }
+      ]
+    }
+  },
+  {
+    name: 'Dub Techno Chord Bus',
+    description: 'Chord stack into delay with gentle modulation and post-delay saturation for classic dub space.',
+    baseKey: 'dub-chord-echo',
+    modifierKeys: ['slow-wobble', 'drive-boost'],
+    moduleStateOverrides: [
+      { moduleId: 'dub-osc1', state: { octave: -1, semitone: 0, cents: 0, mode: 'pitch', type: 'triangle' } },
+      { moduleId: 'dub-osc2', state: { octave: 0, semitone: 7, cents: 0, mode: 'pitch', type: 'triangle' } },
+      { moduleId: 'dub-filter', state: { cutoff: 720, res: 2.6, type: 'lowpass', cutoffLog: true } },
+      { moduleId: 'dub-delay', state: { time: 0.56, feedback: 0.78, mix: 0.68 } },
+      { moduleId: 'mod-slow-wobble-lfo', state: { rate: 0.28, depth: 0.2, type: 'sine' } },
+      { moduleId: 'mod-drive-boost-dist', state: { drive: 2.6, mix: 0.32, output: 0.9, driveLog: true } }
+    ],
+    morph: {
+      label: 'Dub Space',
+      moduleStateAtMax: [
+        { moduleId: 'dub-delay', state: { time: 0.68, feedback: 0.86, mix: 0.76 } },
+        { moduleId: 'mod-drive-boost-dist', state: { drive: 3.8, mix: 0.44 } },
+        { moduleId: 'mod-slow-wobble-lfo', state: { depth: 0.28 } }
+      ]
+    }
+  },
+  {
+    name: 'Subtractive Mono Lead',
+    description: 'Classic mono lead chain with expressive envelope gating and subtle LFO filter movement.',
+    baseKey: 'classic-mono-lead',
+    modifierKeys: ['envelope-pump', 'slow-wobble'],
+    moduleStateOverrides: [
+      { moduleId: 'mono-osc', state: { octave: 0, semitone: 0, cents: 0, mode: 'pitch', type: 'sawtooth' } },
+      { moduleId: 'mono-dist', state: { drive: 5.4, mix: 0.67, output: 0.85, driveLog: true } },
+      { moduleId: 'mono-filter', state: { cutoff: 1850, res: 4.3, type: 'lowpass', cutoffLog: true } },
+      { moduleId: 'mono-gain', state: { level: 0 } },
+      { moduleId: 'mono-delay', state: { time: 0.19, feedback: 0.22, mix: 0.18 } },
+      { moduleId: 'mod-envelope-pump-adsr', state: { attack: 0.01, decay: 0.22, sustain: 0.15, release: 0.12 } },
+      { moduleId: 'mod-slow-wobble-lfo', state: { rate: 4.2, depth: 0.2, type: 'triangle' } }
+    ],
+    morph: {
+      label: 'Lead Bite',
+      moduleStateAtMax: [
+        { moduleId: 'mono-dist', state: { drive: 8.8, mix: 0.82 } },
+        { moduleId: 'mono-filter', state: { cutoff: 2600, res: 6.6 } },
+        { moduleId: 'mod-slow-wobble-lfo', state: { rate: 6.5, depth: 0.3 } },
+        { moduleId: 'mod-envelope-pump-adsr', state: { attack: 0.005, decay: 0.15, sustain: 0.1 } }
+      ]
+    }
+  },
+  {
+    name: 'Evolving Ambient Pad',
+    description: 'Long-envelope pad with slow filter drift and deep feedback delay for evolving ambience.',
+    baseKey: 'soft-ambient-keys',
+    modifierKeys: ['slow-wobble'],
+    moduleStateOverrides: [
+      { moduleId: 'sak-filter', state: { cutoff: 980, res: 1.3, type: 'lowpass', cutoffLog: true } },
+      { moduleId: 'sak-gain', state: { level: 0 } },
+      { moduleId: 'sak-adsr', state: { attack: 2.4, decay: 1.8, sustain: 0.78, release: 3.8 } },
+      { moduleId: 'sak-delay', state: { time: 0.72, feedback: 0.74, mix: 0.5 } },
+      { moduleId: 'mod-slow-wobble-lfo', state: { rate: 0.09, depth: 0.22, type: 'sine' } }
+    ],
+    morph: {
+      label: 'Pad Motion',
+      moduleStateAtMax: [
+        { moduleId: 'sak-filter', state: { cutoff: 2100, res: 2.1 } },
+        { moduleId: 'sak-delay', state: { time: 0.86, feedback: 0.83, mix: 0.66 } },
+        { moduleId: 'mod-slow-wobble-lfo', state: { rate: 0.18, depth: 0.35 } }
+      ]
+    }
+  },
+  {
+    name: 'FM Bell Atmosphere',
+    description: 'Two-operator FM bell tone routed into echo for spacious metallic plucks.',
+    baseKey: 'electro-fm-bell',
+    modifierKeys: ['wide-echo'],
+    moduleStateOverrides: [
+      { moduleId: 'bell-mod', state: { freq: 240, mode: 'freq', type: 'sine', freqLog: true } },
+      { moduleId: 'bell-carrier', state: { octave: 1, semitone: 0, cents: 3, mode: 'pitch', type: 'sine' } },
+      { moduleId: 'bell-filter', state: { cutoff: 2800, res: 1, type: 'bandpass', cutoffLog: true } },
+      { moduleId: 'mod-wide-echo-delay', state: { time: 0.42, feedback: 0.58, mix: 0.35 } }
+    ],
+    morph: {
+      label: 'Bell Width',
+      moduleStateAtMax: [
+        { moduleId: 'bell-mod', state: { freq: 380 } },
+        { moduleId: 'bell-filter', state: { cutoff: 4200, res: 1.6 } },
+        { moduleId: 'mod-wide-echo-delay', state: { time: 0.58, feedback: 0.72, mix: 0.5 } }
+      ]
+    }
+  },
+  {
+    name: 'Sub Pressure Wobble',
+    description: 'Low-end foundation with controlled drive and tempo-friendly filter wobble.',
+    baseKey: 'sub-bass',
+    modifierKeys: ['drive-boost', 'slow-wobble'],
+    moduleStateOverrides: [
+      { moduleId: 'sub-osc1', state: { octave: -2, semitone: 0, cents: 0, mode: 'pitch', type: 'square' } },
+      { moduleId: 'sub-osc2', state: { octave: -1, semitone: 0, cents: 6, mode: 'pitch', type: 'sawtooth' } },
+      { moduleId: 'sub-filter', state: { cutoff: 230, res: 7.2, type: 'lowpass', cutoffLog: true } },
+      { moduleId: 'mod-drive-boost-dist', state: { drive: 4.8, mix: 0.62, output: 0.84, driveLog: true } },
+      { moduleId: 'mod-slow-wobble-lfo', state: { rate: 1.8, depth: 0.26, type: 'triangle' } }
+    ],
+    morph: {
+      label: 'Wobble Pressure',
+      moduleStateAtMax: [
+        { moduleId: 'mod-drive-boost-dist', state: { drive: 7.6, mix: 0.74, output: 0.8 } },
+        { moduleId: 'sub-filter', state: { cutoff: 480, res: 10.8 } },
+        { moduleId: 'mod-slow-wobble-lfo', state: { rate: 3.2, depth: 0.4 } }
+      ]
+    }
+  }
+];
+
+const RECIPE_MAP = new Map(RECIPE_DEFS.map((r) => [slugify(r.name), r]));
+
+function buildRecipeJson(recipeDef: RecipeDef, morphAmount: number = 0): string {
+  const stacked = buildStackedPreset(recipeDef.baseKey, recipeDef.modifierKeys);
+  let patch = parsePatchJson(stacked.json);
+  if (recipeDef.moduleStateOverrides && recipeDef.moduleStateOverrides.length > 0) {
+    patch = applyModuleStateOverrides(
+      patch,
+      recipeDef.moduleStateOverrides,
+      `${recipeDef.name} overrides`
+    );
+  }
+  if (recipeDef.morph?.moduleStateAtMax?.length) {
+    patch = applyRecipeMorph(
+      patch,
+      recipeDef.morph.moduleStateAtMax,
+      morphAmount,
+      `${recipeDef.name} morph`
+    );
+  }
+  return JSON.stringify(patch);
+}
+
+const recipeResults = RECIPE_DEFS.map((recipeDef) => ({
+  key: slugify(recipeDef.name),
+  label: recipeDef.name,
+  description: recipeDef.description,
+  json: buildRecipeJson(recipeDef)
+}));
+
+const recipeKeySet = new Set<string>();
+for (const recipe of recipeResults) {
+  if (recipeKeySet.has(recipe.key)) {
+    throw new Error(`Duplicate recipe key generated: ${recipe.key}`);
+  }
+  recipeKeySet.add(recipe.key);
+}
+
+export const RECIPE_ORDER: string[] = recipeResults.map((r) => r.key);
+export const RECIPE_LABELS: Record<string, string> = Object.fromEntries(
+  recipeResults.map((r) => [r.key, r.label])
+);
+export const RECIPE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  recipeResults.map((r) => [r.key, r.description])
+);
+export const RECIPES: Record<string, string> = Object.fromEntries(
+  recipeResults.map((r) => [r.key, r.json])
+);
+export const RECIPE_MORPH_LABELS: Record<string, string> = Object.fromEntries(
+  RECIPE_DEFS.map((r) => [slugify(r.name), r.morph?.label || 'Morph'])
+);
+
+export function buildRecipePreset(recipeKey: string, morphAmount: number = 0): StackedPresetResult {
+  const recipeDef = RECIPE_MAP.get(recipeKey);
+  if (!recipeDef) {
+    throw new Error(`Unknown recipe key: ${recipeKey}`);
+  }
+
+  return {
+    key: recipeKey,
+    label: recipeDef.name,
+    json: buildRecipeJson(recipeDef, morphAmount)
+  };
+}

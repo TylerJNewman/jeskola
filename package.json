@@ -9,10 +9,12 @@
     "preview": "vite preview",
     "test:preset-integrity": "node test_preset_integrity.js",
     "test:composed-load": "node test_composed_preset_load.js",
+    "test:stack-builder": "node test_stacked_builder.js",
+    "test:recipe-load": "node test_recipe_load.js",
     "test:distortion-preset": "node test_distortion_preset.js",
     "test:rapid-switch": "node test_rapid_import_switch.js",
     "test:duplicate-import": "node test_duplicate_id_import.js",
-    "test:regression": "bash -lc '(npm run -s dev >/tmp/jeskola-dev.log 2>&1 &) ; DEV_PID=$!; trap \"kill $DEV_PID 2>/dev/null || true\" EXIT; sleep 2; npm run -s test:preset-integrity && node test_distortion_preset.js && node test_composed_preset_load.js && node test_rapid_import_switch.js && node test_duplicate_id_import.js'"
+    "test:regression": "bash -lc '(npm run -s dev >/tmp/jeskola-dev.log 2>&1 &) ; DEV_PID=$!; trap \"kill $DEV_PID 2>/dev/null || true\" EXIT; sleep 2; npm run -s test:preset-integrity && node test_distortion_preset.js && node test_composed_preset_load.js && node test_stacked_builder.js && node test_recipe_load.js && node test_rapid_import_switch.js && node test_duplicate_id_import.js'"
   },
   "devDependencies": {
     "puppeteer": "^24.37.5",
