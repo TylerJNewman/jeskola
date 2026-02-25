@@ -11,7 +11,7 @@ import { MasterNode } from './audio/nodes/MasterNode';
 import { ModularNode } from './audio/nodes/ModularNode';
 import { Workspace } from './ui/Workspace';
 import { Knob } from './ui/Knob';
-import { PRESETS } from './presets';
+import { PRESETS, PRESET_LABELS, PRESET_ORDER } from './presets';
 
 document.addEventListener('DOMContentLoaded', () => {
   const startBtn = document.getElementById('btn-master-play') as HTMLButtonElement;
@@ -139,17 +139,18 @@ document.addEventListener('DOMContentLoaded', () => {
   presetSelect.style.backgroundColor = 'var(--panel-bg)';
   presetSelect.style.color = 'var(--text-light)';
   presetSelect.style.border = '1px solid var(--border-color)';
-  presetSelect.innerHTML = `
-    <option value="">Select a Preset...</option>
-    <option value="sub-bass">Sub Bass (Detuned + Filter)</option>
-    <option value="ethereal-drone">Ethereal Drone (Perfect 5th + Delay)</option>
-    <option value="sci-fi-fm">Sci-Fi FM Laser (CV Pitch Mod)</option>
-    <option value="classic-pluck">Classic Pluck (ADSR + VCA)</option>
-    <option value="acid-bass-sweep">Acid Bass Sweep (ADSR + VCF)</option>
-    <option value="acid-drive">Acid Drive (Dist + VCF)</option>
-    <option value="ambient-pad">Ambient Pad (ADSR + Synth)</option>
-    <option value="wobble-bass">Wobble Bass (LFO + VCF)</option>
-  `;
+  const defaultPresetOpt = document.createElement('option');
+  defaultPresetOpt.value = '';
+  defaultPresetOpt.textContent = 'Select a Preset...';
+  presetSelect.appendChild(defaultPresetOpt);
+
+  PRESET_ORDER.forEach((key) => {
+    if (!PRESETS[key]) return;
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = PRESET_LABELS[key] || key;
+    presetSelect.appendChild(opt);
+  });
 
   const loadPresetBtn = document.createElement('button');
   loadPresetBtn.className = 'control-btn';
