@@ -197,9 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window._workspace = ws; // Save to global scope for module creation
   }
 
-  function createModule(type: string, id?: string, xPos?: number, yPos?: number, state?: Record<string, any>) {
+  function createModule(type: string, id?: string, xPos?: number, yPos?: number, state?: Record<string, any>): boolean {
     const ws = getWorkspace();
-    if (!ws) return;
+    if (!ws) return false;
 
     let audioNode: ModularNode | undefined;
     let title = '';
@@ -594,10 +594,10 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
 
       default:
-        return;
+        return false;
     }
 
-    if (!audioNode) return;
+    if (!audioNode) return false;
 
     if (id) {
       audioNode.id = id;
@@ -613,14 +613,19 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    ws.addModule(audioNode, el, x, y);
+    const added = ws.addModule(audioNode, el, x, y);
+    if (!added) {
+      audioNode.destroy();
+      return false;
+    }
     moduleSetup(el);
+    return true;
   }
 });
 
 declare global {
   interface Window {
     _workspace: Workspace;
-    _createModule: (type: string, id?: string, xPos?: number, yPos?: number, state?: Record<string, any>) => void;
+    _createModule: (type: string, id?: string, xPos?: number, yPos?: number, state?: Record<string, any>) => boolean;
   }
 }

@@ -77,6 +77,7 @@ export const PRESETS: Record<string, string> = {
       { sourceModuleId: "pad-filter", targetModuleId: "pad-gain", sourcePortId: "audio", targetPortId: "audio" },
       { sourceModuleId: "pad-adsr", targetModuleId: "pad-gain", sourcePortId: "audio", targetPortId: "level" },
       { sourceModuleId: "pad-gain", targetModuleId: "pad-delay", sourcePortId: "audio", targetPortId: "audio" },
+      { sourceModuleId: "pad-delay", targetModuleId: "master", sourcePortId: "audio", targetPortId: "audio" }
     ]
   }),
   "wobble-bass": JSON.stringify({

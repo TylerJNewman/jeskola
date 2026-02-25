@@ -10,13 +10,58 @@ export interface UIConnection {
   targetPortId?: string;
 }
 
+export interface PatchModule {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  state: Record<string, unknown>;
+}
+
+export interface PatchConnection {
+  sourceModuleId: string;
+  targetModuleId: string;
+  sourcePortId: string;
+  targetPortId: string;
+}
+
+export interface PatchState {
+  modules: PatchModule[];
+  connections: PatchConnection[];
+}
+
+export interface ImportStateResult {
+  modulesCreated: number;
+  connectionsCreated: number;
+  warnings: string[];
+}
+
+interface WorkspaceModule {
+  audio: ModularNode;
+  element: HTMLElement;
+  disposeUi?: () => void;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 export class Workspace {
   private container: HTMLElement;
   private cablesLayer: SVGSVGElement;
   private transform = { x: 0, y: 0, scale: 1 };
-  
-  private modules: Map<string, { audio: ModularNode, element: HTMLElement }> = new Map();
+
+  private modules: Map<string, WorkspaceModule> = new Map();
   private connections: UIConnection[] = [];
+  private importVersion = 0;
 
   // Dragging state
   private isPanning = false;
@@ -31,8 +76,13 @@ export class Workspace {
   constructor(containerId: string, cablesLayerId: string) {
     this.container = document.getElementById(containerId) as HTMLElement;
     this.cablesLayer = document.getElementById(cablesLayerId) as unknown as SVGSVGElement;
-    
+
     this.initEvents();
+  }
+
+  public hasModule(id: string): boolean {
+    if (this.modules.has(id)) return true;
+    return !!this.container.querySelector(`.module[data-id="${id}"]`);
   }
 
   private initEvents() {
@@ -65,10 +115,9 @@ export class Workspace {
 
       if (this.isConnecting && this.tempSourcePort && this.tempCable) {
         const sourceRect = this.tempSourcePort.getBoundingClientRect();
-        // Adjust for workspace transform
         const sourceX = sourceRect.left + sourceRect.width / 2;
         const sourceY = sourceRect.top + sourceRect.height / 2;
-        
+
         this.drawCable(this.tempCable, sourceX, sourceY, clientX, clientY);
       }
     };
@@ -86,20 +135,18 @@ export class Workspace {
 
     const handlePanEnd = (e: Event | MouseEvent) => {
       this.isPanning = false;
-      
+
       if (this.isConnecting && this.tempCable) {
-        // Did we drop on a valid port?
         let targetPort: HTMLElement | null = null;
         let p: HTMLElement | null = null;
-        
+
         if ('changedTouches' in e && (e as TouchEvent).changedTouches.length > 0) {
           const touch = (e as TouchEvent).changedTouches[0];
           p = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement;
         } else {
           p = e.target as HTMLElement;
         }
-        
-        // Find valid port up the tree
+
         while (p && p !== document.body) {
           if (p.classList && p.classList.contains('port')) {
             targetPort = p;
@@ -109,11 +156,9 @@ export class Workspace {
         }
 
         if (targetPort && this.tempSourcePort) {
-          // Attempt connection
           this.attemptConnection(this.tempSourcePort, targetPort);
         }
-        
-        // Cleanup temp cable
+
         this.tempCable.remove();
         this.tempCable = null;
         this.isConnecting = false;
@@ -126,12 +171,12 @@ export class Workspace {
     window.addEventListener('touchcancel', handlePanEnd);
   }
 
-  private attemptConnection(portA: HTMLElement, portB: HTMLElement) {
+  private attemptConnection(portA: HTMLElement, portB: HTMLElement): boolean {
     const isOutA = portA.classList.contains('output');
     const isOutB = portB.classList.contains('output');
 
     // Must be one output one input
-    if (isOutA === isOutB) return;
+    if (isOutA === isOutB) return false;
 
     const sourcePort = isOutA ? portA : portB;
     const targetPort = isOutA ? portB : portA;
@@ -141,31 +186,27 @@ export class Workspace {
 
     const sourceModuleId = sourcePort.closest('.module')?.getAttribute('data-id');
     const targetModuleId = targetPort.closest('.module')?.getAttribute('data-id');
-    
-    if (!sourceModuleId || !targetModuleId || sourceModuleId === targetModuleId) return;
+
+    if (!sourceModuleId || !targetModuleId || sourceModuleId === targetModuleId) return false;
 
     // Prevent duplicate connections
-    const connectionExists = this.connections.some(c => 
+    const connectionExists = this.connections.some(c =>
       c.sourceModuleId === sourceModuleId && c.targetModuleId === targetModuleId &&
       c.sourcePortId === sourcePortId && c.targetPortId === targetPortId
     );
-    if (connectionExists) return;
+    if (connectionExists) return false;
 
     const sourceData = this.modules.get(sourceModuleId);
     const targetData = this.modules.get(targetModuleId);
 
     if (sourceData && targetData) {
-      // Connect Audio
       sourceData.audio.connect(targetData.audio, targetPortId);
 
-      // Create permanent UI cable
       const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       svgPath.classList.add('cable');
-      
-      // Make cable clickable to remove it
-      svgPath.style.pointerEvents = 'auto'; // SVG is pointer-events: none by default on the layer
+      svgPath.style.pointerEvents = 'auto';
       svgPath.style.cursor = 'pointer';
-      
+
       const connectionInfo: UIConnection = {
         sourceModuleId,
         sourceType: 'output',
@@ -176,16 +217,20 @@ export class Workspace {
         targetPortId
       };
 
-      svgPath.addEventListener('click', (e) => {
+      const handleCableClick = (e: MouseEvent) => {
         e.stopPropagation();
         this.removeConnection(connectionInfo);
-      });
+      };
+      svgPath.addEventListener('click', handleCableClick);
 
       this.cablesLayer.appendChild(svgPath);
       this.connections.push(connectionInfo);
 
       this.updateAllCables();
+      return true;
     }
+
+    return false;
   }
 
   private removeConnection(conn: UIConnection) {
@@ -193,11 +238,9 @@ export class Workspace {
     const targetData = this.modules.get(conn.targetModuleId);
 
     if (sourceData && targetData) {
-      // Disconnect Audio
       sourceData.audio.disconnect(targetData.audio, conn.targetPortId);
     }
 
-    // Clean up UI
     conn.svgPath.remove();
     this.connections = this.connections.filter(c => c !== conn);
     this.updateAllCables();
@@ -205,7 +248,6 @@ export class Workspace {
 
   private updateTransform() {
     this.container.style.backgroundPosition = `${this.transform.x}px ${this.transform.y}px`;
-    // We physically move modules
     this.modules.forEach(data => {
       const el = data.element;
       const baseX = parseFloat(el.getAttribute('data-x') || '0');
@@ -214,64 +256,70 @@ export class Workspace {
     });
   }
 
-  // Cable drawing logic using bezier curve
   private drawCable(path: SVGPathElement, x1: number, y1: number, x2: number, y2: number) {
-    // Distance calculation for curve tightness
     const dx = x2 - x1;
     const absDx = Math.abs(dx);
     const tension = Math.max(50, absDx * 0.4);
 
-    // Output is usually on the right, input on the left
     const d = `M ${x1} ${y1} C ${x1 + tension} ${y1}, ${x2 - tension} ${y2}, ${x2} ${y2}`;
     path.setAttribute('d', d);
   }
 
   public updateAllCables() {
     this.connections.forEach(conn => {
-      const sourceEl = document.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output[data-port-id="${conn.sourcePortId || 'audio'}"]`);
-      const targetEl = document.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input[data-port-id="${conn.targetPortId || 'audio'}"]`);
+      const sourceEl = this.container.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output[data-port-id="${conn.sourcePortId || 'audio'}"]`);
+      const targetEl = this.container.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input[data-port-id="${conn.targetPortId || 'audio'}"]`);
 
-      // Master output edge case
-      if (sourceEl && !targetEl && conn.targetModuleId === 'master') {
-          // handled differently or dummy position for now
-          // For simplicity we will handle master routing outside visual cables or add a Master module UI block.
-      } else if (sourceEl && targetEl) {
+      if (sourceEl && targetEl) {
         const sr = sourceEl.getBoundingClientRect();
         const tr = targetEl.getBoundingClientRect();
         this.drawCable(
-          conn.svgPath, 
-          sr.left + sr.width / 2, 
-          sr.top + sr.height / 2, 
-          tr.left + tr.width / 2, 
+          conn.svgPath,
+          sr.left + sr.width / 2,
+          sr.top + sr.height / 2,
+          tr.left + tr.width / 2,
           tr.top + tr.height / 2
         );
       }
     });
   }
 
-  public addModule(audioNode: ModularNode, element: HTMLElement, x: number, y: number) {
+  public addModule(audioNode: ModularNode, element: HTMLElement, x: number, y: number, disposeUi?: () => void): boolean {
     const id = audioNode.id;
+
+    if (this.hasModule(id)) {
+      return false;
+    }
+
     element.setAttribute('data-id', id);
     element.setAttribute('data-x', x.toString());
     element.setAttribute('data-y', y.toString());
-    
-    // Initial position
-    element.style.transform = `translate(${x + this.transform.x}px, ${y + this.transform.y}px)`;
-    
-    this.container.appendChild(element);
-    this.modules.set(id, { audio: audioNode, element });
 
-    this.setupModuleDragging(element);
+    element.style.transform = `translate(${x + this.transform.x}px, ${y + this.transform.y}px)`;
+
+    this.container.appendChild(element);
+
+    const dragCleanup = this.setupModuleDragging(element);
     this.setupPortEvents(element);
+
+    const combinedDispose = () => {
+      if (dragCleanup) dragCleanup();
+      if (disposeUi) disposeUi();
+    };
+
+    this.modules.set(id, { audio: audioNode, element, disposeUi: combinedDispose });
+    return true;
   }
 
-  private setupModuleDragging(element: HTMLElement) {
+  private setupModuleDragging(element: HTMLElement): (() => void) | undefined {
     const header = element.querySelector('.module-header') as HTMLElement;
-    if (!header) return;
+    if (!header) return undefined;
 
     let isDragging = false;
-    let startX = 0, startY = 0;
-    let initialX = 0, initialY = 0;
+    let startX = 0;
+    let startY = 0;
+    let initialX = 0;
+    let initialY = 0;
 
     const handleDragStart = (clientX: number, clientY: number) => {
       isDragging = true;
@@ -281,20 +329,19 @@ export class Workspace {
       initialY = parseFloat(element.getAttribute('data-y') || '0');
       element.classList.add('dragging');
 
-      // Bring to front among other modules
       this.modules.forEach(m => m.element.style.zIndex = '40');
       element.style.zIndex = '41';
     };
 
-    header.addEventListener('mousedown', (e) => {
-      e.stopPropagation(); // prevent workspace panning
+    const handleHeaderMouseDown = (e: MouseEvent) => {
+      e.stopPropagation();
       handleDragStart(e.clientX, e.clientY);
-    });
+    };
 
-    header.addEventListener('touchstart', (e) => {
+    const handleHeaderTouchStart = (e: TouchEvent) => {
       e.stopPropagation();
       handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: false });
+    };
 
     const handleDragMove = (clientX: number, clientY: number) => {
       if (isDragging) {
@@ -302,25 +349,25 @@ export class Workspace {
         const dy = clientY - startY;
         const newX = initialX + dx;
         const newY = initialY + dy;
-        
+
         element.setAttribute('data-x', newX.toString());
         element.setAttribute('data-y', newY.toString());
         element.style.transform = `translate(${newX + this.transform.x}px, ${newY + this.transform.y}px)`;
-        
+
         this.updateAllCables();
       }
     };
 
-    window.addEventListener('mousemove', (e) => {
+    const handleWindowMouseMove = (e: MouseEvent) => {
       handleDragMove(e.clientX, e.clientY);
-    });
+    };
 
-    window.addEventListener('touchmove', (e) => {
+    const handleWindowTouchMove = (e: TouchEvent) => {
       if (isDragging) {
         e.preventDefault();
         handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
       }
-    }, { passive: false });
+    };
 
     const handleDragEnd = () => {
       if (isDragging) {
@@ -329,17 +376,34 @@ export class Workspace {
       }
     };
 
+    const closeBtn = element.querySelector('.module-close');
+    const handleClose = () => {
+      this.removeModule(element.getAttribute('data-id') as string);
+    };
+
+    header.addEventListener('mousedown', handleHeaderMouseDown);
+    header.addEventListener('touchstart', handleHeaderTouchStart, { passive: false });
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('touchmove', handleWindowTouchMove, { passive: false });
     window.addEventListener('mouseup', handleDragEnd);
     window.addEventListener('touchend', handleDragEnd);
     window.addEventListener('touchcancel', handleDragEnd);
-    
-    // Handle close
-    const closeBtn = element.querySelector('.module-close');
     if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        this.removeModule(element.getAttribute('data-id') as string);
-      });
+      closeBtn.addEventListener('click', handleClose);
     }
+
+    return () => {
+      header.removeEventListener('mousedown', handleHeaderMouseDown);
+      header.removeEventListener('touchstart', handleHeaderTouchStart);
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('touchmove', handleWindowTouchMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchend', handleDragEnd);
+      window.removeEventListener('touchcancel', handleDragEnd);
+      if (closeBtn) {
+        closeBtn.removeEventListener('click', handleClose);
+      }
+    };
   }
 
   private setupPortEvents(element: HTMLElement) {
@@ -348,14 +412,13 @@ export class Workspace {
       const startConnection = (clientX: number, clientY: number) => {
         this.isConnecting = true;
         this.tempSourcePort = port as HTMLElement;
-        
+
         this.tempCable = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         this.tempCable.classList.add('cable', 'active');
         this.cablesLayer.appendChild(this.tempCable);
-        
-        // Initial draw
+
         const rect = port.getBoundingClientRect();
-        this.drawCable(this.tempCable, rect.left + rect.width/2, rect.top + rect.height/2, clientX, clientY);
+        this.drawCable(this.tempCable, rect.left + rect.width / 2, rect.top + rect.height / 2, clientX, clientY);
       };
 
       port.addEventListener('mousedown', (e: Event) => {
@@ -367,7 +430,7 @@ export class Workspace {
       port.addEventListener('touchstart', (e: Event) => {
         const touchEvent = e as TouchEvent;
         e.stopPropagation();
-        touchEvent.preventDefault(); // prevent zoom/scroll
+        touchEvent.preventDefault();
         startConnection(touchEvent.touches[0].clientX, touchEvent.touches[0].clientY);
       }, { passive: false });
     });
@@ -377,17 +440,14 @@ export class Workspace {
     const data = this.modules.get(id);
     if (!data) return;
 
-    // cleanup audio
+    data.disposeUi?.();
     data.audio.destroy();
-    
-    // cleanup DOM
+
     data.element.remove();
     this.modules.delete(id);
 
-    // cleanup connections
     const toRemove = this.connections.filter(c => c.sourceModuleId === id || c.targetModuleId === id);
     toRemove.forEach(c => {
-      // Disconnect audio if the deleted module was the target
       if (c.targetModuleId === id && c.sourceModuleId !== id) {
         const sourceData = this.modules.get(c.sourceModuleId);
         if (sourceData) {
@@ -397,19 +457,21 @@ export class Workspace {
       c.svgPath.remove();
     });
     this.connections = this.connections.filter(c => c.sourceModuleId !== id && c.targetModuleId !== id);
-    
+
     this.updateAllCables();
   }
 
   public exportState(): string {
     const state = {
-      modules: Array.from(this.modules.values()).map(data => ({
-        id: data.audio.id,
-        type: data.audio.type.toLowerCase(),
-        x: parseFloat(data.element.getAttribute('data-x') || '0'),
-        y: parseFloat(data.element.getAttribute('data-y') || '0'),
-        state: data.audio.state
-      })),
+      modules: Array.from(this.modules.values())
+        .filter(data => data.audio.id !== 'master')
+        .map(data => ({
+          id: data.audio.id,
+          type: data.audio.type.toLowerCase(),
+          x: parseFloat(data.element.getAttribute('data-x') || '0'),
+          y: parseFloat(data.element.getAttribute('data-y') || '0'),
+          state: data.audio.state
+        })),
       connections: this.connections.map(c => ({
         sourceModuleId: c.sourceModuleId,
         targetModuleId: c.targetModuleId,
@@ -420,46 +482,150 @@ export class Workspace {
     return JSON.stringify(state);
   }
 
-  public importState(jsonString: string) {
-    try {
-      const state = JSON.parse(jsonString);
-      
-      // 1. Clear existing workspace
-      const existingIds = Array.from(this.modules.keys());
-      existingIds.forEach(id => {
-        if (id !== 'master') {
-          this.removeModule(id);
-        }
-      });
+  private normalizePatchState(raw: unknown): { state: PatchState; warnings: string[] } {
+    const warnings: string[] = [];
+    const empty: PatchState = { modules: [], connections: [] };
 
-      // 2. Recreate modules
-      if (state.modules && Array.isArray(state.modules)) {
-        state.modules.forEach((mod: any) => {
-          if (mod.id !== 'master' && window._createModule) {
-            window._createModule(mod.type, mod.id, mod.x, mod.y, mod.state);
-          }
-        });
+    if (!isObject(raw)) {
+      warnings.push('Patch root must be an object.');
+      return { state: empty, warnings };
+    }
+
+    const rawModules = raw.modules;
+    const rawConnections = raw.connections;
+
+    if (!Array.isArray(rawModules)) {
+      warnings.push('Patch missing modules array.');
+    }
+    if (!Array.isArray(rawConnections)) {
+      warnings.push('Patch missing connections array.');
+    }
+
+    const seenIds = new Set<string>();
+    const modules: PatchModule[] = [];
+    for (const item of Array.isArray(rawModules) ? rawModules : []) {
+      if (!isObject(item)) {
+        warnings.push('Skipped module entry: not an object.');
+        continue;
       }
 
-      // 3. Recreate connections
-      // We need to wait slightly for the DOM to render the new ports before we can attach cables
-      setTimeout(() => {
-        if (state.connections && Array.isArray(state.connections)) {
-          state.connections.forEach((conn: any) => {
-            const sourcePort = document.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output[data-port-id="${conn.sourcePortId || 'audio'}"]`) as HTMLElement;
-            const targetPort = document.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input[data-port-id="${conn.targetPortId || 'audio'}"]`) as HTMLElement;
-            
-            if (sourcePort && targetPort) {
-              this.attemptConnection(sourcePort, targetPort);
-            } else {
-              console.warn(`Could not restore connection: Port not found. Source: ${conn.sourceModuleId} Target: ${conn.targetModuleId}`);
-            }
-          });
-        }
-      }, 200);
+      const id = asString(item.id);
+      const type = asString(item.type);
+      if (!id || !type) {
+        warnings.push('Skipped module entry: id/type missing.');
+        continue;
+      }
+      if (id === 'master') {
+        warnings.push('Skipped module entry: id "master" is reserved.');
+        continue;
+      }
+      if (seenIds.has(id)) {
+        warnings.push(`Skipped duplicate module id "${id}".`);
+        continue;
+      }
 
-    } catch (e) {
-      console.error("Failed to import state:", e);
+      seenIds.add(id);
+      modules.push({
+        id,
+        type,
+        x: asNumber(item.x, 0),
+        y: asNumber(item.y, 0),
+        state: isObject(item.state) ? item.state : {}
+      });
     }
+
+    const validIds = new Set(modules.map(m => m.id));
+    validIds.add('master');
+
+    const connections: PatchConnection[] = [];
+    for (const item of Array.isArray(rawConnections) ? rawConnections : []) {
+      if (!isObject(item)) {
+        warnings.push('Skipped connection entry: not an object.');
+        continue;
+      }
+
+      const sourceModuleId = asString(item.sourceModuleId);
+      const targetModuleId = asString(item.targetModuleId);
+      if (!sourceModuleId || !targetModuleId) {
+        warnings.push('Skipped connection entry: source/target missing.');
+        continue;
+      }
+      if (!validIds.has(sourceModuleId) || !validIds.has(targetModuleId)) {
+        warnings.push(`Skipped connection ${sourceModuleId} -> ${targetModuleId}: unknown endpoint.`);
+        continue;
+      }
+
+      const sourcePortId = asString(item.sourcePortId) || 'audio';
+      const targetPortId = asString(item.targetPortId) || 'audio';
+      connections.push({ sourceModuleId, targetModuleId, sourcePortId, targetPortId });
+    }
+
+    return { state: { modules, connections }, warnings };
+  }
+
+  public importState(jsonString: string): ImportStateResult {
+    const warnings: string[] = [];
+    let parsed: unknown;
+
+    this.importVersion += 1;
+    const importVersion = this.importVersion;
+
+    try {
+      parsed = JSON.parse(jsonString);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'unknown parse error';
+      warnings.push(`Failed to parse patch JSON: ${message}`);
+      return { modulesCreated: 0, connectionsCreated: 0, warnings };
+    }
+
+    const normalized = this.normalizePatchState(parsed);
+    warnings.push(...normalized.warnings);
+
+    const existingIds = Array.from(this.modules.keys());
+    existingIds.forEach(id => {
+      if (id !== 'master') {
+        this.removeModule(id);
+      }
+    });
+
+    let modulesCreated = 0;
+    for (const mod of normalized.state.modules) {
+      if (!window._createModule) {
+        warnings.push('Module creation callback is unavailable.');
+        break;
+      }
+
+      const created = window._createModule(mod.type, mod.id, mod.x, mod.y, mod.state);
+      if (created) {
+        modulesCreated += 1;
+      } else {
+        warnings.push(`Failed to create module ${mod.id} (${mod.type}).`);
+      }
+    }
+
+    // Ignore stale import requests if any future async behavior is introduced.
+    if (importVersion !== this.importVersion) {
+      warnings.push('Stale import aborted.');
+      return { modulesCreated, connectionsCreated: 0, warnings };
+    }
+
+    let connectionsCreated = 0;
+    for (const conn of normalized.state.connections) {
+      const sourcePort = this.container.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output[data-port-id="${conn.sourcePortId}"]`) as HTMLElement | null;
+      const targetPort = this.container.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input[data-port-id="${conn.targetPortId}"]`) as HTMLElement | null;
+
+      if (sourcePort && targetPort) {
+        const connected = this.attemptConnection(sourcePort, targetPort);
+        if (connected) {
+          connectionsCreated += 1;
+        } else {
+          warnings.push(`Skipped connection ${conn.sourceModuleId}:${conn.sourcePortId} -> ${conn.targetModuleId}:${conn.targetPortId}.`);
+        }
+      } else {
+        warnings.push(`Could not restore connection ${conn.sourceModuleId}:${conn.sourcePortId} -> ${conn.targetModuleId}:${conn.targetPortId}: port not found.`);
+      }
+    }
+
+    return { modulesCreated, connectionsCreated, warnings };
   }
 }

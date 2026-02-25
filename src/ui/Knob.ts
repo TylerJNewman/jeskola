@@ -21,6 +21,8 @@ export class Knob {
   private currentLinearPosition: number = 0;
   
   private pendingAnimationFrame: number | null = null;
+  private cleanupCallbacks: Array<() => void> = [];
+  private isDisposed = false;
 
   constructor(
     container: HTMLElement, 
@@ -116,7 +118,8 @@ export class Knob {
     const toggleBtn = this.container.querySelector('.mode-toggle') as HTMLElement;
 
     if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
+      const handleToggleClick = () => {
+        if (this.isDisposed) return;
         this.isLogMode = !this.isLogMode;
         
         const linSeg = toggleBtn.querySelector('[data-mode="lin"]')!;
@@ -139,7 +142,9 @@ export class Knob {
         this.updateVisuals();
         this.onChange(this.currentValue);
         if (this.onModeChange) this.onModeChange(this.isLogMode);
-      });
+      };
+      toggleBtn.addEventListener('click', handleToggleClick);
+      this.cleanupCallbacks.push(() => toggleBtn.removeEventListener('click', handleToggleClick));
     }
 
     const handleStart = (clientY: number) => {
@@ -150,24 +155,30 @@ export class Knob {
       document.body.style.cursor = 'ns-resize';
     };
 
-    knobContainer.addEventListener('mousedown', (e) => {
+    const handleMouseDown = (e: MouseEvent) => {
       e.stopPropagation(); // Prevent workspace drag
       handleStart(e.clientY);
-    });
+    };
+    knobContainer.addEventListener('mousedown', handleMouseDown);
+    this.cleanupCallbacks.push(() => knobContainer.removeEventListener('mousedown', handleMouseDown));
 
-    knobContainer.addEventListener('touchstart', (e) => {
+    const handleTouchStart = (e: TouchEvent) => {
       e.stopPropagation();
       handleStart(e.touches[0].clientY);
-    }, { passive: false });
+    };
+    knobContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+    this.cleanupCallbacks.push(() => knobContainer.removeEventListener('touchstart', handleTouchStart));
 
     // Double-click to reset
-    knobContainer.addEventListener('dblclick', (e) => {
+    const handleDoubleClick = (e: MouseEvent) => {
       e.stopPropagation();
       this.currentValue = this.defaultValue;
       this.currentLinearPosition = this.calculateLinearFromValue(this.defaultValue);
       this.updateVisuals();
       this.onChange(this.currentValue);
-    });
+    };
+    knobContainer.addEventListener('dblclick', handleDoubleClick);
+    this.cleanupCallbacks.push(() => knobContainer.removeEventListener('dblclick', handleDoubleClick));
 
     const handleMove = (clientY: number) => {
       if (this.isDragging) {
@@ -202,16 +213,20 @@ export class Knob {
       }
     };
 
-    window.addEventListener('mousemove', (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       handleMove(e.clientY);
-    });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    this.cleanupCallbacks.push(() => window.removeEventListener('mousemove', handleMouseMove));
 
-    window.addEventListener('touchmove', (e) => {
+    const handleTouchMove = (e: TouchEvent) => {
       if (this.isDragging) {
         e.preventDefault(); // prevent scrolling while twisting knob
         handleMove(e.touches[0].clientY);
       }
-    }, { passive: false });
+    };
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    this.cleanupCallbacks.push(() => window.removeEventListener('touchmove', handleTouchMove));
 
     const handleEnd = () => {
       if (this.isDragging) {
@@ -223,6 +238,9 @@ export class Knob {
     window.addEventListener('mouseup', handleEnd);
     window.addEventListener('touchend', handleEnd);
     window.addEventListener('touchcancel', handleEnd);
+    this.cleanupCallbacks.push(() => window.removeEventListener('mouseup', handleEnd));
+    this.cleanupCallbacks.push(() => window.removeEventListener('touchend', handleEnd));
+    this.cleanupCallbacks.push(() => window.removeEventListener('touchcancel', handleEnd));
   }
 
   private updateVisuals() {
@@ -236,5 +254,21 @@ export class Knob {
     // Map linear percentage to rotation (-135deg to +135deg)
     const degrees = -135 + (visualLinearPos * 270);
     this.knobElement.style.transform = `rotate(${degrees}deg)`;
+  }
+
+  public dispose(): void {
+    if (this.isDisposed) return;
+    this.isDisposed = true;
+
+    if (this.pendingAnimationFrame !== null) {
+      cancelAnimationFrame(this.pendingAnimationFrame);
+      this.pendingAnimationFrame = null;
+    }
+
+    this.isDragging = false;
+    document.body.style.cursor = '';
+
+    this.cleanupCallbacks.forEach(cleanup => cleanup());
+    this.cleanupCallbacks = [];
   }
 }
