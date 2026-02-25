@@ -91,7 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'jeskola_patch.json';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
 
@@ -181,14 +183,18 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="ports" style="justify-content: space-between;">
             <div class="port-container" style="flex-direction:row; align-items:center;">
               <div class="port input" data-port-id="freq"></div>
-              <span class="label" style="font-size:9px; margin-left:4px;">CV FREQ</span>
+              <span class="label" style="font-size:9px; margin-left:4px;">1V/OCT</span>
             </div>
             <div class="port-container">
               <span class="label">OUT</span>
               <div class="port output" data-port-id="audio"></div>
             </div>
           </div>
-          <div class="control-group"></div>
+          <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px;">
+            <div class="control-group oct-group"></div>
+            <div class="control-group coarse-group"></div>
+            <div class="control-group fine-group"></div>
+          </div>
           <div class="select-container">
             <select class="type-sel">
               <option value="sine">Sine</option>
@@ -201,13 +207,37 @@ document.addEventListener('DOMContentLoaded', () => {
         moduleSetup = (container) => {
           const osc = audioNode as OscillatorModule;
           if (state) osc.state = { ...state };
-          else osc.state = { freq: 440, type: 'sine' };
+          else osc.state = { octave: 0, semitone: 0, cents: 0, type: 'sine' };
 
-          const cg = container.querySelector('.control-group') as HTMLElement;
-          new Knob(cg, 'FREQ', 0.1, 2000, osc.state.freq, (val) => {
-            osc.setFrequency(val);
-            osc.state.freq = val;
-          }, true);
+          // Handle legacy state patches that might only have "freq" instead of the new tuning arrays
+          if (osc.state.octave === undefined) {
+             osc.state.octave = 0;
+             osc.state.semitone = 0;
+             osc.state.cents = 0;
+          }
+
+          const octCg = container.querySelector('.oct-group') as HTMLElement;
+          new Knob(octCg, 'OCT', -3, 3, osc.state.octave, (val) => {
+            osc.setOctave(val);
+            osc.state.octave = val;
+          }, false, false, undefined, 1);
+          
+          const coarseCg = container.querySelector('.coarse-group') as HTMLElement;
+          new Knob(coarseCg, 'COARSE', -12, 12, osc.state.semitone, (val) => {
+            osc.setSemitone(val);
+            osc.state.semitone = val;
+          }, false, false, undefined, 1);
+          
+          const fineCg = container.querySelector('.fine-group') as HTMLElement;
+          new Knob(fineCg, 'FINE', -100, 100, osc.state.cents, (val) => {
+            osc.setCents(val);
+            osc.state.cents = val;
+          });
+          
+          // Initial push to engine
+          osc.setOctave(osc.state.octave);
+          osc.setSemitone(osc.state.semitone);
+          osc.setCents(osc.state.cents);
           
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
           sel.value = osc.state.type;
@@ -257,7 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
           new Knob(freqCg, 'CUTOFF', 20, 10000, filt.state.cutoff, (val) => {
             filt.setFrequency(val);
             filt.state.cutoff = val;
-          }, true);
+          }, true, !!filt.state.cutoffLog, (isLog) => {
+            filt.state.cutoffLog = isLog;
+          });
           
           const resCg = container.querySelector('.res-group') as HTMLElement;
           new Knob(resCg, 'RES', 0, 20, filt.state.res, (val) => {

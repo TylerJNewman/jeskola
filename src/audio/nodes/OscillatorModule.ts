@@ -4,7 +4,12 @@ import { audioEngine } from '../AudioEngine';
 export class OscillatorModule extends ModularNode {
   private osc: OscillatorNode;
   private gain: GainNode;
-  private freqMod: GainNode;
+  private cvPitchMod: GainNode;
+
+  private baseFreq: number = 440;
+  private octave: number = 0;
+  private semitone: number = 0;
+  private cents: number = 0;
 
   constructor() {
     super('Oscillator');
@@ -26,19 +31,38 @@ export class OscillatorModule extends ModularNode {
     this.inputNode = null; 
     this.outputNode = this.gain;
     
-    // Scale incoming CV by 1000Hz for FM
-    this.freqMod = ctx.createGain();
-    this.freqMod.gain.value = 1000;
-    this.freqMod.connect(this.osc.frequency);
+    // Scale incoming CV by 1200 cents for 1V/Octave standard modular tracking
+    this.cvPitchMod = ctx.createGain();
+    this.cvPitchMod.gain.value = 1200;
+    this.cvPitchMod.connect(this.osc.detune);
     
     // Register CV inputs
-    this.params.set('freq', this.freqMod);
+    this.params.set('freq', this.cvPitchMod);
     this.params.set('gain', this.gain.gain);
   }
 
-  public setFrequency(val: number): void {
+  private calculateFrequency() {
     const ctx = audioEngine.getContext();
-    this.osc.frequency.setTargetAtTime(val, ctx.currentTime, 0.05);
+    const finalFreq = this.baseFreq * Math.pow(2, this.octave) * Math.pow(2, this.semitone / 12);
+    // Smooth glide to new frequency
+    this.osc.frequency.setTargetAtTime(finalFreq, ctx.currentTime, 0.05);
+    // Smooth glide to new fine tune
+    this.osc.detune.setTargetAtTime(this.cents, ctx.currentTime, 0.05);
+  }
+
+  public setOctave(val: number): void {
+    this.octave = val;
+    this.calculateFrequency();
+  }
+
+  public setSemitone(val: number): void {
+    this.semitone = val;
+    this.calculateFrequency();
+  }
+
+  public setCents(val: number): void {
+    this.cents = val;
+    this.calculateFrequency();
   }
 
   public setType(type: OscillatorType): void {
@@ -68,7 +92,7 @@ export class OscillatorModule extends ModularNode {
 
   public override destroy(): void {
     this.stop();
-    this.freqMod.disconnect();
+    this.cvPitchMod.disconnect();
     this.osc.disconnect();
     this.gain.disconnect();
     super.destroy();

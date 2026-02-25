@@ -13,7 +13,9 @@ export class Knob {
   private startY = 0;
 
   private logCapable: boolean;
-  private isLogMode: boolean = false;
+  private isLogMode: boolean;
+  private onModeChange?: (isLog: boolean) => void;
+  private step?: number;
   // Linear 0.0 to 1.0 tracker to prevent position jumping when toggling modes
   private currentLinearPosition: number = 0;
 
@@ -24,7 +26,10 @@ export class Knob {
     max: number, 
     initialValue: number, 
     onChange: (val: number) => void,
-    logCapable: boolean = false
+    logCapable: boolean = false,
+    initialLogMode: boolean = false,
+    onModeChange?: (isLog: boolean) => void,
+    step?: number
   ) {
     this.container = container;
     this.min = min;
@@ -32,16 +37,26 @@ export class Knob {
     this.currentValue = initialValue;
     this.onChange = onChange;
     this.logCapable = logCapable;
+    this.isLogMode = initialLogMode;
+    this.onModeChange = onModeChange;
+    this.step = step;
     
-    // Calculate initial linear position based on initialValue
-    this.currentLinearPosition = (initialValue - min) / (max - min);
+    // Calculate initial linear position based on initialValue and mode
+    if (this.isLogMode) {
+      const safeMin = Math.max(0.0001, this.min);
+      const safeMax = Math.max(safeMin + 0.0001, this.max);
+      this.currentLinearPosition = (Math.log(initialValue) - Math.log(safeMin)) / (Math.log(safeMax) - Math.log(safeMin));
+    } else {
+      this.currentLinearPosition = (initialValue - min) / (max - min);
+    }
+    this.currentLinearPosition = Math.min(1.0, Math.max(0.0, this.currentLinearPosition));
 
     this.container.classList.add('control-group');
     
     const toggleHtml = this.logCapable ? 
       `<div class="mini-segment mode-toggle" title="Toggle Scale">
-         <span class="segment active" data-mode="lin">LIN</span>
-         <span class="segment" data-mode="log">LOG</span>
+         <span class="segment ${!this.isLogMode ? 'active' : ''}" data-mode="lin">LIN</span>
+         <span class="segment ${this.isLogMode ? 'active' : ''}" data-mode="log">LOG</span>
        </div>` : '';
 
     this.container.innerHTML = `
@@ -81,6 +96,16 @@ export class Knob {
     }
   }
 
+  private calculateLinearFromValue(val: number): number {
+    if (this.isLogMode) {
+      const safeMin = Math.max(0.0001, this.min);
+      const safeMax = Math.max(safeMin + 0.0001, this.max);
+      return (Math.log(val) - Math.log(safeMin)) / (Math.log(safeMax) - Math.log(safeMin));
+    } else {
+      return (val - this.min) / (this.max - this.min);
+    }
+  }
+
   private initEvents() {
     const knobContainer = this.container.querySelector('.knob-container') as HTMLElement;
     const toggleBtn = this.container.querySelector('.mode-toggle') as HTMLElement;
@@ -108,6 +133,7 @@ export class Knob {
         
         this.updateVisuals();
         this.onChange(this.currentValue);
+        if (this.onModeChange) this.onModeChange(this.isLogMode);
       });
     }
 
@@ -139,8 +165,16 @@ export class Knob {
         this.currentLinearPosition = Math.min(1.0, Math.max(0.0, this.startValue + valueDelta));
         
         // Translate linear percentage into final mapped physical value
-        this.currentValue = this.calculateValueFromLinear(this.currentLinearPosition);
-        this.currentValue = Math.min(this.max, Math.max(this.min, this.currentValue));
+        let rawValue = this.calculateValueFromLinear(this.currentLinearPosition);
+        rawValue = Math.min(this.max, Math.max(this.min, rawValue));
+        
+        // Handle optional step snapping
+        if (this.step && this.step > 0) {
+          this.currentValue = Math.round(rawValue / this.step) * this.step;
+          this.currentValue = Math.min(this.max, Math.max(this.min, this.currentValue));
+        } else {
+          this.currentValue = rawValue;
+        }
         
         this.updateVisuals();
         this.onChange(this.currentValue);
@@ -173,8 +207,13 @@ export class Knob {
   private updateVisuals() {
     this.valueElement.textContent = this.formatValue(this.currentValue);
     
+    // Snap the visual position if a step is defined, otherwise use the smooth linear tracker
+    const visualLinearPos = (this.step && this.step > 0) 
+      ? this.calculateLinearFromValue(this.currentValue) 
+      : this.currentLinearPosition;
+      
     // Map linear percentage to rotation (-135deg to +135deg)
-    const degrees = -135 + (this.currentLinearPosition * 270);
+    const degrees = -135 + (visualLinearPos * 270);
     this.knobElement.style.transform = `rotate(${degrees}deg)`;
   }
 }
