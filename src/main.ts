@@ -5,6 +5,7 @@ import { FilterModule } from './audio/nodes/FilterModule';
 import { DelayModule } from './audio/nodes/DelayModule';
 import { GainModule } from './audio/nodes/GainModule';
 import { AdsrModule } from './audio/nodes/AdsrModule';
+import { LfoModule } from './audio/nodes/LfoModule';
 import { MasterNode } from './audio/nodes/MasterNode';
 import { ModularNode } from './audio/nodes/ModularNode';
 import { Workspace } from './ui/Workspace';
@@ -145,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <option value="classic-pluck">Classic Pluck (ADSR + VCA)</option>
     <option value="acid-bass-sweep">Acid Bass Sweep (ADSR + VCF)</option>
     <option value="ambient-pad">Ambient Pad (ADSR + Synth)</option>
+    <option value="wobble-bass">Wobble Bass (LFO + VCF)</option>
   `;
 
   const loadPresetBtn = document.createElement('button');
@@ -535,6 +537,59 @@ document.addEventListener('DOMContentLoaded', () => {
           adsr.setDecay(adsr.state.decay);
           adsr.setSustain(adsr.state.sustain);
           adsr.setRelease(adsr.state.release);
+        };
+        break;
+
+      case 'lfo':
+        audioNode = new LfoModule();
+        title = 'LFO';
+        bodyHTML = `
+          <div class="ports">
+            <div></div> 
+            <div class="port-container" style="justify-content: flex-end;">
+              <span class="label">OUT</span>
+              <div class="port output cv" data-port-id="audio"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 12px; justify-content: center; margin-top: 8px;">
+            <div class="control-group rate-group"></div>
+            <div class="control-group depth-group"></div>
+          </div>
+          <div class="select-container" style="margin-top: 8px;">
+            <select class="type-sel">
+              <option value="sine">Sine</option>
+              <option value="square">Square</option>
+              <option value="sawtooth">Saw</option>
+              <option value="triangle">Triangle</option>
+            </select>
+          </div>
+        `;
+        
+        moduleSetup = (container) => {
+          const lfo = audioNode as LfoModule;
+          if (state) lfo.state = { ...state };
+          else lfo.state = { rate: 1.0, depth: 0.5, type: 'sine' };
+
+          const rateCg = container.querySelector('.rate-group') as HTMLElement;
+          new Knob(rateCg, 'RATE', 0.1, 50.0, lfo.state.rate, (val) => {
+            lfo.setRate(val);
+            lfo.state.rate = val;
+          }, true, true, undefined, undefined, 1.0);
+          
+          const depthCg = container.querySelector('.depth-group') as HTMLElement;
+          new Knob(depthCg, 'DEPTH', 0.0, 1.0, lfo.state.depth, (val) => {
+            lfo.setDepth(val);
+            lfo.state.depth = val;
+          }, false, false, undefined, undefined, 0.5);
+
+          const sel = container.querySelector('.type-sel') as HTMLSelectElement;
+          sel.value = lfo.state.type;
+          sel.addEventListener('change', () => {
+            lfo.setType(sel.value as OscillatorType);
+            lfo.state.type = sel.value;
+          });
+          
+          lfo.start();
         };
         break;
 
