@@ -229,11 +229,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const stackModifierSelectB = createStackModifierSelect('Modifier 2');
   const stackModifierSelectC = createStackModifierSelect('Modifier 3');
 
-  const loadStackBtn = document.createElement('button');
-  loadStackBtn.className = 'control-btn';
-  loadStackBtn.innerHTML = '<span>LOAD STACK</span>';
-  loadStackBtn.style.marginRight = '8px';
-  loadStackBtn.addEventListener('click', () => {
+  const STACK_PRESET_COMBOS: Array<{ label: string; baseKey: string; modifiers: string[] }> = [
+    { label: 'Acid Movement', baseKey: 'acid-drive', modifiers: ['slow-wobble', 'envelope-pump'] },
+    { label: 'Dub Motion Bus', baseKey: 'dub-chord-echo', modifiers: ['slow-wobble', 'drive-boost'] },
+    { label: 'Mono Lead Plus', baseKey: 'classic-mono-lead', modifiers: ['slow-wobble', 'envelope-pump'] },
+    { label: 'Sub Heavy Wobble', baseKey: 'sub-bass', modifiers: ['drive-boost', 'slow-wobble'] },
+    { label: 'FM Space Bell', baseKey: 'electro-fm-bell', modifiers: ['wide-echo'] }
+  ];
+
+  const stackPresetSelect = document.createElement('select');
+  stackPresetSelect.className = 'select-preset stack-preset-select';
+  stackPresetSelect.title = 'Try a ready-made stack combination';
+  const stackPresetDefaultOpt = document.createElement('option');
+  stackPresetDefaultOpt.value = '';
+  stackPresetDefaultOpt.textContent = 'Try a Stack Preset...';
+  stackPresetSelect.appendChild(stackPresetDefaultOpt);
+  STACK_PRESET_COMBOS.forEach((combo, idx) => {
+    const opt = document.createElement('option');
+    opt.value = String(idx);
+    opt.textContent = combo.label;
+    stackPresetSelect.appendChild(opt);
+  });
+
+  const applyStackFromControls = () => {
     const ws = getWorkspace();
     if (!ws) return;
 
@@ -257,7 +275,35 @@ document.addEventListener('DOMContentLoaded', () => {
     ensureInitialized().then(() => {
       ws.importState(stacked.json);
     });
+  };
+
+  const loadStackBtn = document.createElement('button');
+  loadStackBtn.className = 'control-btn';
+  loadStackBtn.innerHTML = '<span>LOAD STACK</span>';
+  loadStackBtn.style.marginRight = '8px';
+  loadStackBtn.addEventListener('click', applyStackFromControls);
+
+  const loadStackPresetBtn = document.createElement('button');
+  loadStackPresetBtn.className = 'control-btn';
+  loadStackPresetBtn.innerHTML = '<span>LOAD STACK PRESET</span>';
+  loadStackPresetBtn.style.marginRight = '8px';
+  loadStackPresetBtn.addEventListener('click', () => {
+    const rawIndex = stackPresetSelect.value;
+    if (rawIndex === '') return;
+    const index = Number(rawIndex);
+    const combo = STACK_PRESET_COMBOS[index];
+    if (!combo) return;
+
+    stackBaseSelect.value = combo.baseKey;
+    stackModifierSelectA.value = combo.modifiers[0] || '';
+    stackModifierSelectB.value = combo.modifiers[1] || '';
+    stackModifierSelectC.value = combo.modifiers[2] || '';
+    applyStackFromControls();
   });
+
+  const stackHint = document.createElement('span');
+  stackHint.className = 'toolbar-hint';
+  stackHint.textContent = 'Pick base + modifiers, or use a Stack Preset.';
 
   const recipeSelect = document.createElement('select');
   recipeSelect.className = 'select-preset';
@@ -407,25 +453,98 @@ document.addEventListener('DOMContentLoaded', () => {
   bpmLabel.className = 'bpm-label';
   bpmLabel.textContent = 'BPM';
 
-  // Prepend buttons to controls area
-  const controlsDiv = document.querySelector('.controls');
-  if (controlsDiv) {
-    controlsDiv.insertBefore(presetSelect, startBtn);
-    controlsDiv.insertBefore(loadPresetBtn, startBtn);
-    controlsDiv.insertBefore(stackBaseSelect, startBtn);
-    controlsDiv.insertBefore(stackModifierSelectA, startBtn);
-    controlsDiv.insertBefore(stackModifierSelectB, startBtn);
-    controlsDiv.insertBefore(stackModifierSelectC, startBtn);
-    controlsDiv.insertBefore(loadStackBtn, startBtn);
-    controlsDiv.insertBefore(recipeSelect, startBtn);
-    controlsDiv.insertBefore(loadRecipeBtn, startBtn);
-    controlsDiv.insertBefore(recipeMorphWrap, startBtn);
-    controlsDiv.insertBefore(saveBtn, startBtn);
-    controlsDiv.insertBefore(loadBtn, startBtn);
-    controlsDiv.appendChild(loadFileBtn);
-    controlsDiv.insertBefore(transportPlayBtn, startBtn);
-    controlsDiv.insertBefore(bpmInput, startBtn);
-    controlsDiv.insertBefore(bpmLabel, startBtn);
+  const tier1Global = document.querySelector('.tier1-global');
+  const sectionChips = document.querySelector('.toolbar-section-chips');
+  const sectionPanels = document.querySelector('.toolbar-sections');
+
+  if (tier1Global && sectionChips && sectionPanels) {
+    const transportGroup = document.createElement('div');
+    transportGroup.className = 'toolbar-group toolbar-group-transport';
+    transportGroup.append(transportPlayBtn, bpmInput, bpmLabel);
+
+    const fileGroup = document.createElement('div');
+    fileGroup.className = 'toolbar-group toolbar-group-file';
+    fileGroup.append(saveBtn, loadBtn, loadFileBtn);
+
+    const audioGroup = document.createElement('div');
+    audioGroup.className = 'toolbar-group toolbar-group-audio';
+    audioGroup.appendChild(startBtn);
+
+    tier1Global.replaceChildren(transportGroup, fileGroup, audioGroup);
+
+    type ToolbarSectionKey = 'recipe' | 'preset' | 'stack';
+    const activeSectionDefault: ToolbarSectionKey = 'recipe';
+    let activeSection: ToolbarSectionKey = activeSectionDefault;
+
+    const chips = new Map<ToolbarSectionKey, HTMLButtonElement>();
+    const panels = new Map<ToolbarSectionKey, HTMLElement>();
+
+    const createSectionChip = (key: ToolbarSectionKey, label: string) => {
+      const chip = document.createElement('button');
+      chip.className = 'toolbar-section-chip';
+      chip.setAttribute('data-section', key);
+      chip.textContent = label;
+      chip.addEventListener('click', () => setActiveSection(key));
+      chips.set(key, chip);
+      return chip;
+    };
+
+    const createSectionPanel = (key: ToolbarSectionKey) => {
+      const panel = document.createElement('div');
+      panel.className = 'toolbar-section-panel';
+      panel.setAttribute('data-section', key);
+      panels.set(key, panel);
+      return panel;
+    };
+
+    const recipeChip = createSectionChip('recipe', 'Recipe');
+    const presetChip = createSectionChip('preset', 'Preset');
+    const stackChip = createSectionChip('stack', 'Stack');
+    sectionChips.replaceChildren(recipeChip, presetChip, stackChip);
+
+    const recipePanel = createSectionPanel('recipe');
+    recipePanel.append(recipeSelect, loadRecipeBtn, recipeMorphWrap);
+
+    const presetPanel = createSectionPanel('preset');
+    presetPanel.append(presetSelect, loadPresetBtn);
+
+    const stackPanel = createSectionPanel('stack');
+    stackPanel.append(
+      stackPresetSelect,
+      loadStackPresetBtn,
+      stackBaseSelect,
+      stackModifierSelectA,
+      stackModifierSelectB,
+      stackModifierSelectC,
+      loadStackBtn,
+      stackHint
+    );
+
+    sectionPanels.replaceChildren(recipePanel, presetPanel, stackPanel);
+
+    const compactMq = window.matchMedia('(max-width: 1400px)');
+
+    const syncSectionVisibility = () => {
+      const isCompact = compactMq.matches;
+      document.body.classList.toggle('toolbar-compact', isCompact);
+      (['recipe', 'preset', 'stack'] as ToolbarSectionKey[]).forEach((key) => {
+        const chip = chips.get(key);
+        const panel = panels.get(key);
+        if (!chip || !panel) return;
+        const isActive = key === activeSection;
+        chip.classList.toggle('active', isActive);
+        panel.classList.toggle('active', isActive);
+        panel.classList.toggle('hidden', isCompact && !isActive);
+      });
+    };
+
+    const setActiveSection = (key: ToolbarSectionKey) => {
+      activeSection = key;
+      syncSectionVisibility();
+    };
+
+    compactMq.addEventListener('change', syncSectionVisibility);
+    setActiveSection(activeSectionDefault);
   }
 
   function createMasterModule(ws: Workspace) {
@@ -460,7 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // For manual creation vs loading
     let x = xPos !== undefined ? xPos : 30 + (moduleCount * 20);
-    let y = yPos !== undefined ? yPos : 80 + (moduleCount * 20);
+    let y = yPos !== undefined ? yPos : 112 + (moduleCount * 20);
     if (xPos === undefined) moduleCount++;
 
     const el = document.createElement('div');
@@ -785,8 +904,10 @@ document.addEventListener('DOMContentLoaded', () => {
         title = 'ADSR Element';
         bodyHTML = `
           <div class="ports">
-            <!-- ADSR has no audio input, only CV output -->
-            <div></div> 
+            <div class="port-container">
+              <div class="port input cv" data-port-id="gate"></div>
+              <span class="label">GATE</span>
+            </div>
             <div class="port-container" style="justify-content: flex-end;">
               <span class="label">OUT</span>
               <div class="port output cv" data-port-id="audio"></div>
@@ -917,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
         audioNode = new SequencerModule();
         title = 'Sequencer';
         bodyHTML = `
-          <div class="ports" style="justify-content: flex-end; gap: 12px;">
+          <div class="ports" style="justify-content: flex-end; gap: 28px; padding-right: 6px;">
             <div class="port-container">
               <span class="label">NOTE</span>
               <div class="port output cv" data-port-id="audio"></div>

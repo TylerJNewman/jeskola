@@ -15,12 +15,15 @@ import puppeteer from 'puppeteer';
     });
 
     await page.evaluate(async () => {
-      const controls = document.querySelector('.controls');
-      if (!controls) {
-        throw new Error('Controls not found');
+      const stackChip = document.querySelector('.toolbar-section-chip[data-section="stack"]');
+      stackChip?.click();
+
+      const stackPanel = document.querySelector('.toolbar-section-panel[data-section="stack"]');
+      if (!stackPanel) {
+        throw new Error('Stack panel not found');
       }
 
-      const allSelects = Array.from(controls.querySelectorAll('select'));
+      const allSelects = Array.from(stackPanel.querySelectorAll('select'));
       const stackBaseSelect = allSelects.find((sel) =>
         !Array.from(sel.querySelectorAll('option')).some((opt) => opt.value === '') &&
         Array.from(sel.querySelectorAll('option')).some((opt) => opt.value === 'acid-drive')
@@ -28,7 +31,7 @@ import puppeteer from 'puppeteer';
       const stackModifierSelects = allSelects.filter((sel) =>
         Array.from(sel.querySelectorAll('option')).some((opt) => opt.value === 'slow-wobble')
       );
-      const stackBtn = Array.from(controls.querySelectorAll('.control-btn'))
+      const stackBtn = Array.from(stackPanel.querySelectorAll('.control-btn'))
         .find((el) => el.textContent?.trim() === 'LOAD STACK');
 
       if (!stackBaseSelect || stackModifierSelects.length < 2 || !stackBtn) {

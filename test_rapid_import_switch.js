@@ -15,9 +15,13 @@ import puppeteer from 'puppeteer';
     });
 
     await page.evaluate(async () => {
-      const presetSelect = document.querySelector('.select-preset');
-      const buttons = Array.from(document.querySelectorAll('.controls .control-btn'));
-      const loadPresetBtn = buttons.find((b) => b.textContent?.trim() === 'LOAD PRESET');
+      const presetChip = document.querySelector('.toolbar-section-chip[data-section="preset"]');
+      presetChip?.click();
+
+      const presetPanel = document.querySelector('.toolbar-section-panel[data-section="preset"]');
+      const presetSelect = presetPanel?.querySelector('select');
+      const loadPresetBtn = Array.from(presetPanel?.querySelectorAll('.control-btn') || [])
+        .find((b) => b.textContent?.trim() === 'LOAD PRESET');
       if (!presetSelect || !loadPresetBtn) {
         throw new Error('Preset controls not found');
       }

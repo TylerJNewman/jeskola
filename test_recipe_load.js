@@ -15,16 +15,19 @@ import puppeteer from 'puppeteer';
     });
 
     await page.evaluate(async () => {
-      const controls = document.querySelector('.controls');
-      if (!controls) {
-        throw new Error('Controls not found');
+      const recipeChip = document.querySelector('.toolbar-section-chip[data-section="recipe"]');
+      recipeChip?.click();
+
+      const recipePanel = document.querySelector('.toolbar-section-panel[data-section="recipe"]');
+      if (!recipePanel) {
+        throw new Error('Recipe panel not found');
       }
 
-      const allSelects = Array.from(controls.querySelectorAll('select'));
+      const allSelects = Array.from(recipePanel.querySelectorAll('select'));
       const recipeSelect = allSelects.find((sel) =>
         Array.from(sel.querySelectorAll('option')).some((opt) => opt.value === 'classic-acid-bassline')
       );
-      const recipeBtn = Array.from(controls.querySelectorAll('.control-btn'))
+      const recipeBtn = Array.from(recipePanel.querySelectorAll('.control-btn'))
         .find((el) => el.textContent?.trim() === 'LOAD RECIPE');
 
       if (!recipeSelect || !recipeBtn) {

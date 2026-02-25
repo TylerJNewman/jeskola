@@ -11,11 +11,13 @@ import puppeteer from 'puppeteer';
         document.getElementById('btn-master-play').click();
         await new Promise(r => setTimeout(r, 500));
 
-        const presetSelect = document.querySelector('.select-preset');
+        const presetChip = document.querySelector('.toolbar-section-chip[data-section="preset"]');
+        presetChip?.click();
+        const presetPanel = document.querySelector('.toolbar-section-panel[data-section="preset"]');
+        const presetSelect = presetPanel?.querySelector('select');
         presetSelect.value = 'sci-fi-fm';
 
-        // Find the load preset button (it's the second button in .controls)
-        const btns = document.querySelectorAll('.controls .control-btn');
+        const btns = presetPanel?.querySelectorAll('.control-btn') || [];
         for (let btn of btns) {
             if (btn.textContent === 'LOAD PRESET') {
                 btn.click();

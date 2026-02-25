@@ -81,17 +81,23 @@ export class SequencerModule extends ModularNode {
     const step = this.pattern.steps[stepIndex];
     const stepDuration = transport.secondsPerTick;
 
+    // Short ramp time to avoid clicks from abrupt value changes
+    const RAMP = 0.002;
+
     if (step && step.gate && step.note !== NO_VALUE) {
       const cvValue = midiToCv(step.note + this._octaveOffset * 12);
       const velocity = step.velocity !== NO_VALUE ? step.velocity : 1.0;
       const gateOffTime = tickTime + this._gateLength * stepDuration;
 
-      // Schedule note CV
-      this.noteCV.offset.setValueAtTime(cvValue, tickTime);
+      // Schedule note CV (ramp pitch to avoid click on pitch change)
+      this.noteCV.offset.setValueAtTime(this.noteCV.offset.value, tickTime);
+      this.noteCV.offset.linearRampToValueAtTime(cvValue, tickTime + RAMP);
 
-      // Schedule gate CV
-      this.gateCV.offset.setValueAtTime(velocity, tickTime);
-      this.gateCV.offset.setValueAtTime(0, gateOffTime);
+      // Schedule gate CV (ramp on/off to avoid click)
+      this.gateCV.offset.setValueAtTime(this.gateCV.offset.value, tickTime);
+      this.gateCV.offset.linearRampToValueAtTime(velocity, tickTime + RAMP);
+      this.gateCV.offset.setValueAtTime(velocity, gateOffTime);
+      this.gateCV.offset.linearRampToValueAtTime(0, gateOffTime + RAMP);
 
       // Fire gate signals to connected ADSR modules
       this.gateTargets.forEach(target => {
@@ -101,8 +107,9 @@ export class SequencerModule extends ModularNode {
         }
       });
     } else {
-      // No note on this step — ensure gate is off
-      this.gateCV.offset.setValueAtTime(0, tickTime);
+      // No note on this step — ramp gate off to avoid click
+      this.gateCV.offset.setValueAtTime(this.gateCV.offset.value, tickTime);
+      this.gateCV.offset.linearRampToValueAtTime(0, tickTime + RAMP);
     }
 
     // Notify UI of step change

@@ -201,13 +201,17 @@ export class Workspace {
     const targetData = this.modules.get(targetModuleId);
 
     if (sourceData && targetData) {
-      sourceData.audio.connect(targetData.audio, targetPortId, sourcePortId);
+      // Register gate targets for sequencer -> module gate connections
+      const isGateConnection = (sourcePortId === 'gate' || targetPortId === 'gate')
+        && typeof targetData.audio.onGateSignal === 'function';
 
-      // Register gate targets for sequencer -> ADSR connections
-      if (sourcePortId === 'gate' && typeof targetData.audio.onGateSignal === 'function') {
+      if (isGateConnection) {
+        // Gate connections use the onGateSignal interface, not audio routing
         if (typeof (sourceData.audio as any).addGateTarget === 'function') {
           (sourceData.audio as any).addGateTarget(targetData.audio);
         }
+      } else {
+        sourceData.audio.connect(targetData.audio, targetPortId, sourcePortId);
       }
 
       const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -246,11 +250,15 @@ export class Workspace {
     const targetData = this.modules.get(conn.targetModuleId);
 
     if (sourceData && targetData) {
-      sourceData.audio.disconnect(targetData.audio, conn.targetPortId, conn.sourcePortId);
+      const isGateConnection = (conn.sourcePortId === 'gate' || conn.targetPortId === 'gate')
+        && typeof targetData.audio.onGateSignal === 'function';
 
-      // Deregister gate targets
-      if (conn.sourcePortId === 'gate' && typeof (sourceData.audio as any).removeGateTarget === 'function') {
-        (sourceData.audio as any).removeGateTarget(targetData.audio);
+      if (isGateConnection) {
+        if (typeof (sourceData.audio as any).removeGateTarget === 'function') {
+          (sourceData.audio as any).removeGateTarget(targetData.audio);
+        }
+      } else {
+        sourceData.audio.disconnect(targetData.audio, conn.targetPortId, conn.sourcePortId);
       }
     }
 
@@ -464,10 +472,14 @@ export class Workspace {
       if (c.targetModuleId === id && c.sourceModuleId !== id) {
         const sourceData = this.modules.get(c.sourceModuleId);
         if (sourceData) {
-          sourceData.audio.disconnect(data.audio, c.targetPortId, c.sourcePortId);
-          // Deregister gate targets
-          if (c.sourcePortId === 'gate' && typeof (sourceData.audio as any).removeGateTarget === 'function') {
-            (sourceData.audio as any).removeGateTarget(data.audio);
+          const isGate = (c.sourcePortId === 'gate' || c.targetPortId === 'gate')
+            && typeof data.audio.onGateSignal === 'function';
+          if (isGate) {
+            if (typeof (sourceData.audio as any).removeGateTarget === 'function') {
+              (sourceData.audio as any).removeGateTarget(data.audio);
+            }
+          } else {
+            sourceData.audio.disconnect(data.audio, c.targetPortId, c.sourcePortId);
           }
         }
       }
