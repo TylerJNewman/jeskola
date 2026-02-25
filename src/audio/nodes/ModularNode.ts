@@ -3,7 +3,7 @@ import { audioEngine } from '../AudioEngine';
  * Base class for all modular synthesizer nodes.
  */
 export abstract class ModularNode {
-  public readonly id: string;
+  public id: string;
   public readonly type: string;
   
   protected inputNode: AudioNode | null = null;

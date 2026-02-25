@@ -400,4 +400,66 @@ export class Workspace {
     
     this.updateAllCables();
   }
+
+  public exportState(): string {
+    const state = {
+      modules: Array.from(this.modules.values()).map(data => ({
+        id: data.audio.id,
+        type: data.audio.type.toLowerCase(),
+        x: parseFloat(data.element.getAttribute('data-x') || '0'),
+        y: parseFloat(data.element.getAttribute('data-y') || '0'),
+        state: data.audio.state
+      })),
+      connections: this.connections.map(c => ({
+        sourceModuleId: c.sourceModuleId,
+        targetModuleId: c.targetModuleId,
+        sourcePortId: c.sourcePortId,
+        targetPortId: c.targetPortId
+      }))
+    };
+    return JSON.stringify(state);
+  }
+
+  public importState(jsonString: string) {
+    try {
+      const state = JSON.parse(jsonString);
+      
+      // 1. Clear existing workspace
+      const existingIds = Array.from(this.modules.keys());
+      existingIds.forEach(id => {
+        if (id !== 'master') {
+          this.removeModule(id);
+        }
+      });
+
+      // 2. Recreate modules
+      if (state.modules && Array.isArray(state.modules)) {
+        state.modules.forEach((mod: any) => {
+          if (mod.id !== 'master' && window._createModule) {
+            window._createModule(mod.type, mod.id, mod.x, mod.y, mod.state);
+          }
+        });
+      }
+
+      // 3. Recreate connections
+      // We need to wait slightly for the DOM to render the new ports before we can attach cables
+      setTimeout(() => {
+        if (state.connections && Array.isArray(state.connections)) {
+          state.connections.forEach((conn: any) => {
+            const sourcePort = document.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output[data-port-id="${conn.sourcePortId || 'audio'}"]`) as HTMLElement;
+            const targetPort = document.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input[data-port-id="${conn.targetPortId || 'audio'}"]`) as HTMLElement;
+            
+            if (sourcePort && targetPort) {
+              this.attemptConnection(sourcePort, targetPort);
+            } else {
+              console.warn(`Could not restore connection: Port not found. Source: ${conn.sourceModuleId} Target: ${conn.targetModuleId}`);
+            }
+          });
+        }
+      }, 200);
+
+    } catch (e) {
+      console.error("Failed to import state:", e);
+    }
+  }
 }

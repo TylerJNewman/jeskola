@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Initialize workspace
       const workspace = new Workspace('workspace', 'cables-layer');
       
+      // Expose createModule to Window for Workspace.ts to use during imports
+      window._createModule = createModule;
+      
       // Master Module
       createMasterModule(workspace);
       
@@ -74,8 +77,66 @@ document.addEventListener('DOMContentLoaded', () => {
     return window._workspace;
   }
 
+  // --- SAVE / LOAD LOGIC ---
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'control-btn';
+  saveBtn.innerHTML = '<span>SAVE PATCH</span>';
+  saveBtn.style.marginRight = '8px';
+  saveBtn.addEventListener('click', () => {
+    const ws = getWorkspace();
+    if (!ws) return;
+    const json = ws.exportState();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'jeskola_patch.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  const loadFileBtn = document.createElement('input');
+  loadFileBtn.type = 'file';
+  loadFileBtn.accept = '.json';
+  loadFileBtn.style.display = 'none';
+  loadFileBtn.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (re) => {
+      const ws = getWorkspace();
+      if (ws && typeof re.target?.result === 'string') {
+        const result = re.target.result;
+        // Make sure audio is initialized before importing 
+        ensureInitialized().then(() => {
+           ws.importState(result);
+        });
+      }
+    };
+    reader.readAsText(file);
+    // Reset file input so we can load the same file again if desired
+    loadFileBtn.value = '';
+  });
+
+  const loadBtn = document.createElement('button');
+  loadBtn.className = 'control-btn';
+  loadBtn.innerHTML = '<span>LOAD PATCH</span>';
+  loadBtn.style.marginRight = '8px';
+  loadBtn.addEventListener('click', () => {
+    loadFileBtn.click();
+  });
+
+  // Prepend buttons to controls area
+  const controlsDiv = document.querySelector('.controls');
+  if (controlsDiv) {
+    controlsDiv.insertBefore(saveBtn, startBtn);
+    controlsDiv.insertBefore(loadBtn, startBtn);
+    controlsDiv.appendChild(loadFileBtn);
+  }
+
   function createMasterModule(ws: Workspace) {
     const master = new MasterNode();
+    master.id = 'master'; // Force fixed ID for serialization routing
     const el = document.createElement('div');
     el.className = 'module';
     el.innerHTML = `
@@ -95,16 +156,18 @@ document.addEventListener('DOMContentLoaded', () => {
     window._workspace = ws; // Save to global scope for module creation
   }
 
-  function createModule(type: string) {
+  function createModule(type: string, id?: string, xPos?: number, yPos?: number, state?: Record<string, any>) {
     const ws = getWorkspace();
     if (!ws) return;
 
     let audioNode: ModularNode | undefined;
     let title = '';
     let bodyHTML = '';
-    let x = 220 + (moduleCount * 20);
-    let y = 100 + (moduleCount * 20);
-    moduleCount++;
+    
+    // For manual creation vs loading
+    let x = xPos !== undefined ? xPos : 220 + (moduleCount * 20);
+    let y = yPos !== undefined ? yPos : 100 + (moduleCount * 20);
+    if (xPos === undefined) moduleCount++;
 
     const el = document.createElement('div');
     el.className = 'module';
@@ -137,11 +200,21 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         moduleSetup = (container) => {
           const osc = audioNode as OscillatorModule;
+          if (state) osc.state = { ...state };
+          else osc.state = { freq: 440, type: 'sine' };
+
           const cg = container.querySelector('.control-group') as HTMLElement;
-          new Knob(cg, 'FREQ', 0.1, 2000, 440, (val) => osc.setFrequency(val), true);
+          new Knob(cg, 'FREQ', 0.1, 2000, osc.state.freq, (val) => {
+            osc.setFrequency(val);
+            osc.state.freq = val;
+          }, true);
           
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
-          sel.addEventListener('change', () => osc.setType(sel.value as OscillatorType));
+          sel.value = osc.state.type;
+          sel.addEventListener('change', () => {
+            osc.setType(sel.value as OscillatorType);
+            osc.state.type = sel.value;
+          });
           
           osc.start();
         };
@@ -177,14 +250,27 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         moduleSetup = (container) => {
           const filt = audioNode as FilterModule;
+          if (state) filt.state = { ...state };
+          else filt.state = { cutoff: 1000, res: 1, type: 'lowpass' };
+
           const freqCg = container.querySelector('.freq-group') as HTMLElement;
-          new Knob(freqCg, 'CUTOFF', 20, 10000, 1000, (val) => filt.setFrequency(val), true);
+          new Knob(freqCg, 'CUTOFF', 20, 10000, filt.state.cutoff, (val) => {
+            filt.setFrequency(val);
+            filt.state.cutoff = val;
+          }, true);
           
           const resCg = container.querySelector('.res-group') as HTMLElement;
-          new Knob(resCg, 'RES', 0, 20, 1, (val) => filt.setResonance(val));
+          new Knob(resCg, 'RES', 0, 20, filt.state.res, (val) => {
+            filt.setResonance(val);
+            filt.state.res = val;
+          });
 
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
-          sel.addEventListener('change', () => filt.setType(sel.value as BiquadFilterType));
+          sel.value = filt.state.type;
+          sel.addEventListener('change', () => {
+            filt.setType(sel.value as BiquadFilterType);
+            filt.state.type = sel.value;
+          });
         };
         break;
 
@@ -215,9 +301,21 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         moduleSetup = (container) => {
           const del = audioNode as DelayModule;
-          new Knob(container.querySelector('.time-group') as HTMLElement, 'TIME', 0.0, 2.0, 0.4, (val) => del.setTime(val));
-          new Knob(container.querySelector('.fb-group') as HTMLElement, 'FEEDBACK', 0.0, 1.0, 0.4, (val) => del.setFeedback(val));
-          new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, 0.5, (val) => del.setMix(val));
+          if (state) del.state = { ...state };
+          else del.state = { time: 0.4, feedback: 0.4, mix: 0.5 };
+
+          new Knob(container.querySelector('.time-group') as HTMLElement, 'TIME', 0.0, 2.0, del.state.time, (val) => {
+            del.setTime(val);
+            del.state.time = val;
+          });
+          new Knob(container.querySelector('.fb-group') as HTMLElement, 'FEEDBACK', 0.0, 1.0, del.state.feedback, (val) => {
+            del.setFeedback(val);
+            del.state.feedback = val;
+          });
+          new Knob(container.querySelector('.mix-group') as HTMLElement, 'MIX', 0.0, 1.0, del.state.mix, (val) => {
+            del.setMix(val);
+            del.state.mix = val;
+          });
         };
         break;
 
@@ -236,7 +334,13 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         moduleSetup = (container) => {
           const gn = audioNode as GainModule;
-          new Knob(container.querySelector('.control-group') as HTMLElement, 'LEVEL', 0.0, 2.0, 0.5, (val) => gn.setGain(val));
+          if (state) gn.state = { ...state };
+          else gn.state = { level: 0.5 };
+
+          new Knob(container.querySelector('.control-group') as HTMLElement, 'LEVEL', 0.0, 2.0, gn.state.level, (val) => {
+            gn.setGain(val);
+            gn.state.level = val;
+          });
         };
         break;
 
@@ -245,6 +349,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (!audioNode) return;
+
+    if (id) {
+      audioNode.id = id;
+    }
 
     el.innerHTML = `
       <div class="module-header">
@@ -264,5 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
 declare global {
   interface Window {
     _workspace: Workspace;
+    _createModule: (type: string, id?: string, xPos?: number, yPos?: number, state?: Record<string, any>) => void;
   }
 }
