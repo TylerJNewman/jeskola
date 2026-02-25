@@ -1,5 +1,7 @@
 import { ModularNode } from './ModularNode';
 import { audioEngine } from '../AudioEngine';
+import { createSmoothCV } from '../AudioUtils';
+import type { SmoothCV } from '../AudioUtils';
 
 export class DelayModule extends ModularNode {
   private delay: DelayNode;
@@ -8,6 +10,10 @@ export class DelayModule extends ModularNode {
   private dry: GainNode;
   private inputGain: GainNode;
   private outputGain: GainNode;
+  
+  private smoothTime: SmoothCV;
+  private smoothFeedback: SmoothCV;
+  private smoothMix: SmoothCV;
 
   constructor() {
     super('Delay');
@@ -21,11 +27,21 @@ export class DelayModule extends ModularNode {
     this.dry = ctx.createGain(); // Dry
     this.outputGain = ctx.createGain();
 
-    // Default params
-    this.delay.delayTime.value = 0.4;
-    this.feedback.gain.value = 0.4;
-    this.mix.gain.value = 0.5;
-    this.dry.gain.value = 0.8;
+    // Default params driven by SmoothCV completely
+    this.delay.delayTime.value = 0;
+    this.feedback.gain.value = 0;
+    this.mix.gain.value = 0;
+    this.dry.gain.value = 0;
+    
+    // Slew limiters
+    this.smoothTime = createSmoothCV(0.4, 15);
+    this.smoothTime.node.connect(this.delay.delayTime);
+    
+    this.smoothFeedback = createSmoothCV(0.4, 15);
+    this.smoothFeedback.node.connect(this.feedback.gain);
+    
+    this.smoothMix = createSmoothCV(0.5, 15);
+    this.smoothMix.node.connect(this.mix.gain);
 
     // Routing
     // Input splits into Dry and Delay
@@ -52,23 +68,27 @@ export class DelayModule extends ModularNode {
   }
 
   public setTime(val: number): void {
-    const ctx = audioEngine.getContext();
-    this.delay.delayTime.setTargetAtTime(val, ctx.currentTime, 0.05);
+    this.smoothTime.setValue(val);
   }
 
   public setFeedback(val: number): void {
-    const ctx = audioEngine.getContext();
-    this.feedback.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
+    this.smoothFeedback.setValue(val);
   }
 
   public setMix(val: number): void {
+    this.smoothMix.setValue(val);
+    
+    // Inverse relationship for dry signal to maintain volume roughly.
+    // We can just use the fast Web Audio param setter here since it's just inverse 
+    // of wet, but let's let SmoothMix handle wet and gracefully handle the dry drop.
     const ctx = audioEngine.getContext();
-    this.mix.gain.setTargetAtTime(val, ctx.currentTime, 0.05);
-    // Inverse relationship for dry signal to maintain volume roughly
     this.dry.gain.setTargetAtTime(1 - val, ctx.currentTime, 0.05);
   }
 
   public override destroy(): void {
+    this.smoothTime.destroy();
+    this.smoothFeedback.destroy();
+    this.smoothMix.destroy();    
     this.inputGain.disconnect();
     this.delay.disconnect();
     this.feedback.disconnect();

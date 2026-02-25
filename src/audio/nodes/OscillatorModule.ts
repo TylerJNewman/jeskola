@@ -1,10 +1,15 @@
 import { ModularNode } from './ModularNode';
 import { audioEngine } from '../AudioEngine';
+import { createSmoothCV } from '../AudioUtils';
+import type { SmoothCV } from '../AudioUtils';
 
 export class OscillatorModule extends ModularNode {
   private osc: OscillatorNode;
   private gain: GainNode;
   private cvPitchMod: GainNode;
+
+  private smoothFreq: SmoothCV;
+  private smoothDetune: SmoothCV;
 
   private baseFreq: number = 440;
   private octave: number = 0;
@@ -23,7 +28,15 @@ export class OscillatorModule extends ModularNode {
     this.gain = ctx.createGain();
     
     this.osc.type = 'sine';
-    this.osc.frequency.value = 440;
+    
+    this.osc.frequency.value = 0; // Driven entirely by SmoothCV
+    this.osc.detune.value = 0;   // Driven entirely by SmoothCV
+    
+    this.smoothFreq = createSmoothCV(440, 15);
+    this.smoothFreq.node.connect(this.osc.frequency);
+    
+    this.smoothDetune = createSmoothCV(0, 15);
+    this.smoothDetune.node.connect(this.osc.detune);
     
     this.gain.gain.value = 0.5;
     
@@ -45,14 +58,13 @@ export class OscillatorModule extends ModularNode {
   }
 
   private calculateFrequency() {
-    const ctx = audioEngine.getContext();
     if (this.currentMode === 'pitch') {
       const finalFreq = this.baseFreq * Math.pow(2, this.octave) * Math.pow(2, this.semitone / 12);
-      this.osc.frequency.setTargetAtTime(finalFreq, ctx.currentTime, 0.05);
-      this.osc.detune.setTargetAtTime(this.cents, ctx.currentTime, 0.05);
+      this.smoothFreq.setValue(finalFreq);
+      this.smoothDetune.setValue(this.cents);
     } else {
-      this.osc.frequency.setTargetAtTime(this.rawFreq, ctx.currentTime, 0.05);
-      this.osc.detune.setTargetAtTime(0, ctx.currentTime, 0.05);
+      this.smoothFreq.setValue(this.rawFreq);
+      this.smoothDetune.setValue(0);
     }
   }
 
@@ -108,6 +120,8 @@ export class OscillatorModule extends ModularNode {
 
   public override destroy(): void {
     this.stop();
+    this.smoothFreq.destroy();
+    this.smoothDetune.destroy();
     this.cvPitchMod.disconnect();
     this.osc.disconnect();
     this.gain.disconnect();
