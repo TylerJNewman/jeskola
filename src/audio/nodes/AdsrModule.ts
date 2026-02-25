@@ -49,8 +49,12 @@ export class AdsrModule extends ModularNode {
     this.cvSource.offset.linearRampToValueAtTime(1.0, now + aTime);
     
     // Decay phase: Drop to sustain level
-    // We use setTargetAtTime for exponential decay which sounds more natural
+    // Web Audio exponential ramps get angry if you target exactly 0
     const dTime = Math.max(0.01, this.state.decay);
+    
+    // Instead of exponentialRampToValueAtTime, use setTargetAtTime which handles 0 safely
+    // and produces a natural exponential curve. The time constant should be decay / 3
+    // because setTargetAtTime takes ~3 time constants to reach 95% of target.
     this.cvSource.offset.setTargetAtTime(this.state.sustain, now + aTime, dTime / 3);
   }
 
@@ -60,11 +64,23 @@ export class AdsrModule extends ModularNode {
     
     this.cvSource.offset.cancelScheduledValues(now);
     
-    const currentValue = this.cvSource.offset.value;
-    this.cvSource.offset.setValueAtTime(currentValue, now);
+    // We want to avoid clicks if triggered mid-release
+    // Also we must read the value at 'now' explicitly to ramp down smoothly
+    // Wait, let's use a small timeout to get the actual value, or let Web Audio handle it
+    // cancelAndHoldAtTime might be better if supported, else just use setTargetAtTime
+    try {
+      // Use cancelAndHoldAtTime if available to avoid clicks
+      if (typeof this.cvSource.offset.cancelAndHoldAtTime === 'function') {
+        this.cvSource.offset.cancelAndHoldAtTime(now);
+      } else {
+        const currentValue = this.cvSource.offset.value;
+        this.cvSource.offset.setValueAtTime(currentValue, now);
+      }
+    } catch(e) { /* fallback */ }
     
-    // Release phase: Drop to 0
+    // Release phase: Drop to 0 exponentially
     const rTime = Math.max(0.01, this.state.release);
+    // setTargetAtTime can safely target exact 0
     this.cvSource.offset.setTargetAtTime(0, now, rTime / 3);
   }
 
