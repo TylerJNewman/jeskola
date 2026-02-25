@@ -18,10 +18,10 @@ export class FilterModule extends ModularNode {
     this.inputNode = this.filter;
     this.outputNode = this.filter;
     
-    // Scale incoming CV by 2000Hz for Cutoff
+    // Scale incoming CV exponentially via Detune (4800 cents = 4 octaves)
     this.cutoffMod = ctx.createGain();
-    this.cutoffMod.gain.value = 2000;
-    this.cutoffMod.connect(this.filter.frequency);
+    this.cutoffMod.gain.value = 4800;
+    this.cutoffMod.connect(this.filter.detune);
 
     // Scale incoming CV by 10 for Resonance
     this.resMod = ctx.createGain();

@@ -83,7 +83,7 @@ export const PRESETS: Record<string, string> = {
     modules: [
       { id: "wobble-osc", type: "oscillator", x: 100, y: 100, state: { octave: -1, semitone: 0, cents: 0, mode: 'pitch', type: 'sawtooth', freqLog: false } },
       { id: "wobble-filter", type: "filter", x: 400, y: 100, state: { cutoff: 300, res: 12, type: 'lowpass', cutoffLog: true } },
-      { id: "wobble-lfo", type: "lfo", x: 100, y: 350, state: { rate: 3.5, depth: 400.0, type: 'sine' } },
+      { id: "wobble-lfo", type: "lfo", x: 100, y: 350, state: { rate: 3.5, depth: 0.5, type: 'sine' } },
       { id: "wobble-gain", type: "gain", x: 700, y: 100, state: { level: 0.8 } }
     ],
     connections: [
