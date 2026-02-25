@@ -59,6 +59,8 @@ export class Workspace {
   private container: HTMLElement;
   private cablesLayer: SVGSVGElement;
   private transform = { x: 0, y: 0, scale: 1 };
+  private static MIN_SCALE = 0.15;
+  private static MAX_SCALE = 2.0;
 
   private modules: Map<string, WorkspaceModule> = new Map();
   private connections: UIConnection[] = [];
@@ -170,6 +172,31 @@ export class Workspace {
     window.addEventListener('mouseup', handlePanEnd);
     window.addEventListener('touchend', handlePanEnd);
     window.addEventListener('touchcancel', handlePanEnd);
+
+    // Zoom (scroll wheel / trackpad pinch)
+    this.container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+
+      // Get cursor position relative to viewport
+      const rect = this.container.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+
+      // Determine zoom factor
+      const delta = e.ctrlKey ? -e.deltaY * 0.01 : -e.deltaY * 0.002;
+      const newScale = Math.max(Workspace.MIN_SCALE, Math.min(Workspace.MAX_SCALE,
+        this.transform.scale * (1 + delta)
+      ));
+      const scaleRatio = newScale / this.transform.scale;
+
+      // Zoom toward cursor: adjust pan so the point under cursor stays fixed
+      this.transform.x = cursorX - scaleRatio * (cursorX - this.transform.x);
+      this.transform.y = cursorY - scaleRatio * (cursorY - this.transform.y);
+      this.transform.scale = newScale;
+
+      this.updateTransform();
+      this.updateAllCables();
+    }, { passive: false });
   }
 
   private attemptConnection(portA: HTMLElement, portB: HTMLElement): boolean {
@@ -268,12 +295,16 @@ export class Workspace {
   }
 
   private updateTransform() {
-    this.container.style.backgroundPosition = `${this.transform.x}px ${this.transform.y}px`;
+    const { x, y, scale } = this.transform;
+    const gridSize = 20 * scale;
+    this.container.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+    this.container.style.backgroundPosition = `${x}px ${y}px`;
     this.modules.forEach(data => {
       const el = data.element;
       const baseX = parseFloat(el.getAttribute('data-x') || '0');
       const baseY = parseFloat(el.getAttribute('data-y') || '0');
-      el.style.transform = `translate(${baseX + this.transform.x}px, ${baseY + this.transform.y}px)`;
+      el.style.transform = `translate(${baseX * scale + x}px, ${baseY * scale + y}px) scale(${scale})`;
+      el.style.transformOrigin = '0 0';
     });
   }
 
@@ -316,7 +347,9 @@ export class Workspace {
     element.setAttribute('data-x', x.toString());
     element.setAttribute('data-y', y.toString());
 
-    element.style.transform = `translate(${x + this.transform.x}px, ${y + this.transform.y}px)`;
+    const { x: tx, y: ty, scale } = this.transform;
+    element.style.transform = `translate(${x * scale + tx}px, ${y * scale + ty}px) scale(${scale})`;
+    element.style.transformOrigin = '0 0';
 
     this.container.appendChild(element);
 
@@ -366,14 +399,15 @@ export class Workspace {
 
     const handleDragMove = (clientX: number, clientY: number) => {
       if (isDragging) {
-        const dx = clientX - startX;
-        const dy = clientY - startY;
+        const dx = (clientX - startX) / this.transform.scale;
+        const dy = (clientY - startY) / this.transform.scale;
         const newX = initialX + dx;
         const newY = initialY + dy;
 
         element.setAttribute('data-x', newX.toString());
         element.setAttribute('data-y', newY.toString());
-        element.style.transform = `translate(${newX + this.transform.x}px, ${newY + this.transform.y}px)`;
+        const { x: tx, y: ty, scale } = this.transform;
+        element.style.transform = `translate(${newX * scale + tx}px, ${newY * scale + ty}px) scale(${scale})`;
 
         this.updateAllCables();
       }
