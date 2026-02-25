@@ -13,6 +13,8 @@ export class GainModule extends ModularNode {
     
     this.inputNode = this.gain;
     this.outputNode = this.gain;
+
+    this.params.set('level', this.gain.gain);
   }
 
   public setGain(val: number): void {

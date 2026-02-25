@@ -4,6 +4,7 @@ import { audioEngine } from '../AudioEngine';
 export class OscillatorModule extends ModularNode {
   private osc: OscillatorNode;
   private gain: GainNode;
+  private freqMod: GainNode;
 
   constructor() {
     super('Oscillator');
@@ -24,6 +25,15 @@ export class OscillatorModule extends ModularNode {
     // Generators usually don't have inputs for audio (except maybe CV/FM later)
     this.inputNode = null; 
     this.outputNode = this.gain;
+    
+    // Scale incoming CV by 1000Hz for FM
+    this.freqMod = ctx.createGain();
+    this.freqMod.gain.value = 1000;
+    this.freqMod.connect(this.osc.frequency);
+    
+    // Register CV inputs
+    this.params.set('freq', this.freqMod);
+    this.params.set('gain', this.gain.gain);
   }
 
   public setFrequency(val: number): void {
@@ -58,6 +68,7 @@ export class OscillatorModule extends ModularNode {
 
   public override destroy(): void {
     this.stop();
+    this.freqMod.disconnect();
     this.osc.disconnect();
     this.gain.disconnect();
     super.destroy();

@@ -6,6 +6,8 @@ export interface UIConnection {
   targetModuleId: string;
   targetType: 'input';
   svgPath: SVGPathElement;
+  sourcePortId?: string;
+  targetPortId?: string;
 }
 
 export class Workspace {
@@ -35,18 +37,28 @@ export class Workspace {
 
   private initEvents() {
     // Panning
+    const handlePanStart = (clientX: number, clientY: number) => {
+      this.isPanning = true;
+      this.startPanX = clientX - this.transform.x;
+      this.startPanY = clientY - this.transform.y;
+    };
+
     this.container.addEventListener('mousedown', (e) => {
       if (e.target === this.container || e.target === this.cablesLayer) {
-        this.isPanning = true;
-        this.startPanX = e.clientX - this.transform.x;
-        this.startPanY = e.clientY - this.transform.y;
+        handlePanStart(e.clientX, e.clientY);
       }
     });
 
-    window.addEventListener('mousemove', (e) => {
+    this.container.addEventListener('touchstart', (e) => {
+      if (e.target === this.container || e.target === this.cablesLayer) {
+        handlePanStart(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: false });
+
+    const handlePanMove = (clientX: number, clientY: number) => {
       if (this.isPanning) {
-        this.transform.x = e.clientX - this.startPanX;
-        this.transform.y = e.clientY - this.startPanY;
+        this.transform.x = clientX - this.startPanX;
+        this.transform.y = clientY - this.startPanY;
         this.updateTransform();
         this.updateAllCables();
       }
@@ -57,17 +69,35 @@ export class Workspace {
         const sourceX = sourceRect.left + sourceRect.width / 2;
         const sourceY = sourceRect.top + sourceRect.height / 2;
         
-        this.drawCable(this.tempCable, sourceX, sourceY, e.clientX, e.clientY);
+        this.drawCable(this.tempCable, sourceX, sourceY, clientX, clientY);
       }
+    };
+
+    window.addEventListener('mousemove', (e) => {
+      handlePanMove(e.clientX, e.clientY);
     });
 
-    window.addEventListener('mouseup', (e) => {
+    window.addEventListener('touchmove', (e) => {
+      if (this.isPanning || this.isConnecting) {
+        e.preventDefault();
+        handlePanMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: false });
+
+    const handlePanEnd = (e: Event | MouseEvent) => {
       this.isPanning = false;
       
       if (this.isConnecting && this.tempCable) {
         // Did we drop on a valid port?
         let targetPort: HTMLElement | null = null;
-        let p = e.target as HTMLElement;
+        let p: HTMLElement | null = null;
+        
+        if ('changedTouches' in e && (e as TouchEvent).changedTouches.length > 0) {
+          const touch = (e as TouchEvent).changedTouches[0];
+          p = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement;
+        } else {
+          p = e.target as HTMLElement;
+        }
         
         // Find valid port up the tree
         while (p && p !== document.body) {
@@ -89,7 +119,11 @@ export class Workspace {
         this.isConnecting = false;
         this.tempSourcePort = null;
       }
-    });
+    };
+
+    window.addEventListener('mouseup', handlePanEnd);
+    window.addEventListener('touchend', handlePanEnd);
+    window.addEventListener('touchcancel', handlePanEnd);
   }
 
   private attemptConnection(portA: HTMLElement, portB: HTMLElement) {
@@ -102,17 +136,27 @@ export class Workspace {
     const sourcePort = isOutA ? portA : portB;
     const targetPort = isOutA ? portB : portA;
 
+    const sourcePortId = sourcePort.getAttribute('data-port-id') || 'audio';
+    const targetPortId = targetPort.getAttribute('data-port-id') || 'audio';
+
     const sourceModuleId = sourcePort.closest('.module')?.getAttribute('data-id');
     const targetModuleId = targetPort.closest('.module')?.getAttribute('data-id');
     
     if (!sourceModuleId || !targetModuleId || sourceModuleId === targetModuleId) return;
+
+    // Prevent duplicate connections
+    const connectionExists = this.connections.some(c => 
+      c.sourceModuleId === sourceModuleId && c.targetModuleId === targetModuleId &&
+      c.sourcePortId === sourcePortId && c.targetPortId === targetPortId
+    );
+    if (connectionExists) return;
 
     const sourceData = this.modules.get(sourceModuleId);
     const targetData = this.modules.get(targetModuleId);
 
     if (sourceData && targetData) {
       // Connect Audio
-      sourceData.audio.connect(targetData.audio);
+      sourceData.audio.connect(targetData.audio, targetPortId);
 
       // Create permanent UI cable
       const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -127,7 +171,9 @@ export class Workspace {
         sourceType: 'output',
         targetModuleId,
         targetType: 'input',
-        svgPath
+        svgPath,
+        sourcePortId,
+        targetPortId
       };
 
       svgPath.addEventListener('click', (e) => {
@@ -148,7 +194,7 @@ export class Workspace {
 
     if (sourceData && targetData) {
       // Disconnect Audio
-      sourceData.audio.disconnect(targetData.audio);
+      sourceData.audio.disconnect(targetData.audio, conn.targetPortId);
     }
 
     // Clean up UI
@@ -182,8 +228,8 @@ export class Workspace {
 
   public updateAllCables() {
     this.connections.forEach(conn => {
-      const sourceEl = document.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output`);
-      const targetEl = document.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input`);
+      const sourceEl = document.querySelector(`.module[data-id="${conn.sourceModuleId}"] .port.output[data-port-id="${conn.sourcePortId || 'audio'}"]`);
+      const targetEl = document.querySelector(`.module[data-id="${conn.targetModuleId}"] .port.input[data-port-id="${conn.targetPortId || 'audio'}"]`);
 
       // Master output edge case
       if (sourceEl && !targetEl && conn.targetModuleId === 'master') {
@@ -227,11 +273,10 @@ export class Workspace {
     let startX = 0, startY = 0;
     let initialX = 0, initialY = 0;
 
-    header.addEventListener('mousedown', (e) => {
-      e.stopPropagation(); // prevent workspace panning
+    const handleDragStart = (clientX: number, clientY: number) => {
       isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
+      startX = clientX;
+      startY = clientY;
       initialX = parseFloat(element.getAttribute('data-x') || '0');
       initialY = parseFloat(element.getAttribute('data-y') || '0');
       element.classList.add('dragging');
@@ -239,12 +284,22 @@ export class Workspace {
       // Bring to front among other modules
       this.modules.forEach(m => m.element.style.zIndex = '40');
       element.style.zIndex = '41';
+    };
+
+    header.addEventListener('mousedown', (e) => {
+      e.stopPropagation(); // prevent workspace panning
+      handleDragStart(e.clientX, e.clientY);
     });
 
-    window.addEventListener('mousemove', (e) => {
+    header.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+      handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+
+    const handleDragMove = (clientX: number, clientY: number) => {
       if (isDragging) {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
+        const dx = clientX - startX;
+        const dy = clientY - startY;
         const newX = initialX + dx;
         const newY = initialY + dy;
         
@@ -254,14 +309,29 @@ export class Workspace {
         
         this.updateAllCables();
       }
+    };
+
+    window.addEventListener('mousemove', (e) => {
+      handleDragMove(e.clientX, e.clientY);
     });
 
-    window.addEventListener('mouseup', () => {
+    window.addEventListener('touchmove', (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: false });
+
+    const handleDragEnd = () => {
       if (isDragging) {
         isDragging = false;
         element.classList.remove('dragging');
       }
-    });
+    };
+
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchend', handleDragEnd);
+    window.addEventListener('touchcancel', handleDragEnd);
     
     // Handle close
     const closeBtn = element.querySelector('.module-close');
@@ -275,9 +345,7 @@ export class Workspace {
   private setupPortEvents(element: HTMLElement) {
     const ports = element.querySelectorAll('.port');
     ports.forEach(port => {
-      port.addEventListener('mousedown', (e: Event) => {
-        const mouseEvent = e as MouseEvent;
-        e.stopPropagation();
+      const startConnection = (clientX: number, clientY: number) => {
         this.isConnecting = true;
         this.tempSourcePort = port as HTMLElement;
         
@@ -287,8 +355,21 @@ export class Workspace {
         
         // Initial draw
         const rect = port.getBoundingClientRect();
-        this.drawCable(this.tempCable, rect.left + rect.width/2, rect.top + rect.height/2, mouseEvent.clientX, mouseEvent.clientY);
+        this.drawCable(this.tempCable, rect.left + rect.width/2, rect.top + rect.height/2, clientX, clientY);
+      };
+
+      port.addEventListener('mousedown', (e: Event) => {
+        const mouseEvent = e as MouseEvent;
+        e.stopPropagation();
+        startConnection(mouseEvent.clientX, mouseEvent.clientY);
       });
+
+      port.addEventListener('touchstart', (e: Event) => {
+        const touchEvent = e as TouchEvent;
+        e.stopPropagation();
+        touchEvent.preventDefault(); // prevent zoom/scroll
+        startConnection(touchEvent.touches[0].clientX, touchEvent.touches[0].clientY);
+      }, { passive: false });
     });
   }
 
@@ -306,6 +387,13 @@ export class Workspace {
     // cleanup connections
     const toRemove = this.connections.filter(c => c.sourceModuleId === id || c.targetModuleId === id);
     toRemove.forEach(c => {
+      // Disconnect audio if the deleted module was the target
+      if (c.targetModuleId === id && c.sourceModuleId !== id) {
+        const sourceData = this.modules.get(c.sourceModuleId);
+        if (sourceData) {
+          sourceData.audio.disconnect(data.audio, c.targetPortId);
+        }
+      }
       c.svgPath.remove();
     });
     this.connections = this.connections.filter(c => c.sourceModuleId !== id && c.targetModuleId !== id);

@@ -43,6 +43,12 @@ export class DelayModule extends ModularNode {
 
     this.inputNode = this.inputGain;
     this.outputNode = this.outputGain;
+
+    this.params.set('time', this.delay.delayTime);
+    this.params.set('feedback', this.feedback.gain);
+    // Note: mix doesn't perfectly work with just AudioParam CV because of the inverted dry 
+    // connection, but for experimental modular synthesis, it will still modulate the wet signal.
+    this.params.set('mix', this.mix.gain);
   }
 
   public setTime(val: number): void {

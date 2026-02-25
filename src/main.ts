@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="module-body">
          <div class="ports" style="justify-content: flex-start;">
           <div class="port-container">
-            <div class="port input"></div>
+            <div class="port input" data-port-id="audio"></div>
             <span class="label">IN</span>
           </div>
         </div>
@@ -115,10 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
         audioNode = new OscillatorModule();
         title = 'Oscillator';
         bodyHTML = `
-          <div class="ports" style="justify-content: flex-end;">
+          <div class="ports" style="justify-content: space-between;">
+            <div class="port-container" style="flex-direction:row; align-items:center;">
+              <div class="port input" data-port-id="freq"></div>
+              <span class="label" style="font-size:9px; margin-left:4px;">CV FREQ</span>
+            </div>
             <div class="port-container">
               <span class="label">OUT</span>
-              <div class="port output"></div>
+              <div class="port output" data-port-id="audio"></div>
             </div>
           </div>
           <div class="control-group"></div>
@@ -134,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         moduleSetup = (container) => {
           const osc = audioNode as OscillatorModule;
           const cg = container.querySelector('.control-group') as HTMLElement;
-          new Knob(cg, 'FREQ', 20, 2000, 440, (val) => osc.setFrequency(val));
+          new Knob(cg, 'FREQ', 0.1, 2000, 440, (val) => osc.setFrequency(val), true);
           
           const sel = container.querySelector('.type-sel') as HTMLSelectElement;
           sel.addEventListener('change', () => osc.setType(sel.value as OscillatorType));
@@ -148,8 +152,16 @@ document.addEventListener('DOMContentLoaded', () => {
         title = 'Filter';
         bodyHTML = `
           <div class="ports">
-            <div class="port-container"><div class="port input"></div><span class="label">IN</span></div>
-            <div class="port-container"><span class="label">OUT</span><div class="port output"></div></div>
+            <div class="port-container"><div class="port input" data-port-id="audio"></div><span class="label">IN</span></div>
+            <div class="port-container"><span class="label">OUT</span><div class="port output" data-port-id="audio"></div></div>
+          </div>
+          <div class="ports" style="justify-content: flex-start; margin-bottom: 8px; flex-direction: column; gap: 8px;">
+            <div class="port-container" style="flex-direction:row; align-items:center;">
+              <div class="port input cv" data-port-id="cutoff"></div><span class="label" style="font-size:9px; margin-left:4px;">CV CUT</span>
+            </div>
+            <div class="port-container" style="flex-direction:row; align-items:center;">
+              <div class="port input cv" data-port-id="res"></div><span class="label" style="font-size:9px; margin-left:4px;">CV RES</span>
+            </div>
           </div>
           <div style="display: flex; gap: 12px; justify-content: center;">
             <div class="control-group freq-group"></div>
@@ -166,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         moduleSetup = (container) => {
           const filt = audioNode as FilterModule;
           const freqCg = container.querySelector('.freq-group') as HTMLElement;
-          new Knob(freqCg, 'CUTOFF', 20, 10000, 1000, (val) => filt.setFrequency(val));
+          new Knob(freqCg, 'CUTOFF', 20, 10000, 1000, (val) => filt.setFrequency(val), true);
           
           const resCg = container.querySelector('.res-group') as HTMLElement;
           new Knob(resCg, 'RES', 0, 20, 1, (val) => filt.setResonance(val));
@@ -181,8 +193,19 @@ document.addEventListener('DOMContentLoaded', () => {
         title = 'Delay';
         bodyHTML = `
           <div class="ports">
-            <div class="port-container"><div class="port input"></div><span class="label">IN</span></div>
-            <div class="port-container"><span class="label">OUT</span><div class="port output"></div></div>
+            <div class="port-container"><div class="port input" data-port-id="audio"></div><span class="label">IN</span></div>
+            <div class="port-container"><span class="label">OUT</span><div class="port output" data-port-id="audio"></div></div>
+          </div>
+          <div class="ports" style="justify-content: center; margin-bottom: 8px; gap: 8px;">
+            <div class="port-container" style="align-items:center;">
+              <div class="port input cv" data-port-id="time"></div>
+            </div>
+            <div class="port-container" style="align-items:center;">
+              <div class="port input cv" data-port-id="feedback"></div>
+            </div>
+            <div class="port-container" style="align-items:center;">
+              <div class="port input cv" data-port-id="mix"></div>
+            </div>
           </div>
           <div style="display: flex; gap: 12px; justify-content: center;">
             <div class="control-group time-group"></div>
@@ -203,8 +226,11 @@ document.addEventListener('DOMContentLoaded', () => {
         title = 'Gain';
         bodyHTML = `
           <div class="ports">
-            <div class="port-container"><div class="port input"></div><span class="label">IN</span></div>
-            <div class="port-container"><span class="label">OUT</span><div class="port output"></div></div>
+            <div class="port-container"><div class="port input" data-port-id="audio"></div><span class="label">IN</span></div>
+            <div class="port-container"><span class="label">OUT</span><div class="port output" data-port-id="audio"></div></div>
+          </div>
+          <div class="ports" style="justify-content: center; margin-bottom: 8px;">
+            <div class="port input cv" data-port-id="level"></div>
           </div>
           <div class="control-group"></div>
         `;
