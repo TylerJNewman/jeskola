@@ -114,6 +114,7 @@ export function WorkspaceCanvas() {
         nodeColor={() => '#FAFAFA'}
         maskColor="rgba(0, 0, 0, 0.05)"
         className="!bg-panel !border !border-border-light !shadow-sm !rounded-[6px]"
+        style={{ width: 120, height: 80 }}
         pannable
         zoomable
       />
