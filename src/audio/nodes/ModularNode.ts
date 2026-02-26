@@ -37,6 +37,11 @@ export abstract class ModularNode {
     this.pushStateToAudio();
   }
 
+  /** Merge into _state without triggering pushStateToAudio. Used by UI to persist values for serialization. */
+  public patchState(patch: Record<string, any>): void {
+    Object.assign(this._state, patch);
+  }
+
   /** Sync _state values to actual AudioParams. Override in subclasses. */
   public pushStateToAudio(): void {
     // Base: no-op. Subclasses override to push _state into their AudioParams.

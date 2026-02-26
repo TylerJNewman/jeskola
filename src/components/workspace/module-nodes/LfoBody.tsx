@@ -4,6 +4,7 @@ import { SegmentToggle } from '@/components/controls/SegmentToggle'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import type { LfoModule } from '@/audio/nodes/LfoModule'
 import { registerModuleBody } from '@/lib/module-body-registry'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
 
 const WAVEFORM_OPTIONS = [
   { value: 'sine', label: 'Sin' },
@@ -21,17 +22,17 @@ function LfoBody({ moduleId }: { moduleId: string }) {
 
   const handleRate = useCallback((val: number) => {
     audio!.setRate(val)
-    audio!.state = { ...audio!.state, rate: val }
+    audio!.patchState({ rate: val })
   }, [audio])
 
   const handleDepth = useCallback((val: number) => {
     audio!.setDepth(val)
-    audio!.state = { ...audio!.state, depth: val }
+    audio!.patchState({ depth: val })
   }, [audio])
 
   const handleType = useCallback((val: string) => {
     audio!.setType(val as OscillatorType)
-    audio!.state = { ...audio!.state, type: val }
+    audio!.patchState({ type: val })
     rerender()
   }, [audio])
 
@@ -40,8 +41,8 @@ function LfoBody({ moduleId }: { moduleId: string }) {
   const state = audio.state as { rate: number; depth: number; type: string }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-3 justify-center">
+    <div className="flex flex-col" style={{ gap: WORKSPACE_LAYOUT.module.bodyGap }}>
+      <div className="flex justify-center" style={{ gap: WORKSPACE_LAYOUT.module.controlRowGap }}>
         <Knob
           label="RATE"
           min={0.1}

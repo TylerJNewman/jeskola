@@ -1,20 +1,23 @@
 import { useAudioEngine } from '@/hooks/use-audio-engine'
+import { Button } from '@/components/ui/button'
 
 export function AudioToggle() {
   const { audioState, toggle } = useAudioEngine()
 
   return (
-    <button
+    <Button
       onClick={toggle}
-      className={`text-[10px] uppercase tracking-wide px-2.5 py-1 border rounded-[4px] transition-colors cursor-pointer ${
+      variant={audioState === 'running' ? 'rams-primary' : 'rams'}
+      size="rams-bar"
+      className={`min-w-[120px] px-3.5 text-[10px] tracking-[0.3px] transition-colors ${
         audioState === 'running'
-          ? 'bg-accent-orange text-white border-accent-orange'
-          : 'bg-panel border-border text-text-light hover:border-accent-orange'
+          ? ''
+          : 'hover:border-accent-orange'
       }`}
     >
       {audioState === 'stopped' ? 'START AUDIO' :
        audioState === 'initializing' ? 'INIT...' :
        'STOP AUDIO'}
-    </button>
+    </Button>
   )
 }

@@ -32,7 +32,7 @@ export function App() {
 
         <SectionPanel section={activeSection} />
 
-        <main className="flex-1 relative" style={{ marginRight: 140 }}>
+        <main className="flex-1 relative">
           <WorkspaceCanvas />
         </main>
 

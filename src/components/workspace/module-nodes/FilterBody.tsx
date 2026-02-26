@@ -4,6 +4,7 @@ import { SegmentToggle } from '@/components/controls/SegmentToggle'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import type { FilterModule } from '@/audio/nodes/FilterModule'
 import { registerModuleBody } from '@/lib/module-body-registry'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
 
 const FILTER_TYPE_OPTIONS = [
   { value: 'lowpass', label: 'LP' },
@@ -20,21 +21,21 @@ function FilterBody({ moduleId }: { moduleId: string }) {
 
   const handleCutoff = useCallback((val: number) => {
     audio!.setFrequency(val)
-    audio!.state = { ...audio!.state, cutoff: val }
+    audio!.patchState({ cutoff: val })
   }, [audio])
 
   const handleCutoffLog = useCallback((isLog: boolean) => {
-    audio!.state = { ...audio!.state, cutoffLog: isLog }
+    audio!.patchState({ cutoffLog: isLog })
   }, [audio])
 
   const handleRes = useCallback((val: number) => {
     audio!.setResonance(val)
-    audio!.state = { ...audio!.state, res: val }
+    audio!.patchState({ res: val })
   }, [audio])
 
   const handleType = useCallback((val: string) => {
     audio!.setType(val as BiquadFilterType)
-    audio!.state = { ...audio!.state, type: val }
+    audio!.patchState({ type: val })
     rerender()
   }, [audio])
 
@@ -43,8 +44,8 @@ function FilterBody({ moduleId }: { moduleId: string }) {
   const state = audio.state as { cutoff: number; cutoffLog?: boolean; res: number; type: string }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-3 justify-center">
+    <div className="flex flex-col" style={{ gap: WORKSPACE_LAYOUT.module.bodyGap }}>
+      <div className="flex justify-center" style={{ gap: WORKSPACE_LAYOUT.module.controlRowGap }}>
         <Knob
           label="CUTOFF"
           min={20} max={10000}

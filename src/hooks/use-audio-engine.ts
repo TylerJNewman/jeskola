@@ -1,35 +1,44 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { audioEngine } from '@/audio/AudioEngine'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useAudioStore } from '@/stores/audio-store'
 
 export function useAudioEngine() {
-  const [audioState, setAudioState] = useState<'stopped' | 'initializing' | 'running'>('stopped')
+  const audioState = useAudioStore(s => s.audioState)
+  const setAudioState = useAudioStore(s => s.setAudioState)
   const initWorkspace = useWorkspaceStore(s => s.initWorkspace)
 
   const initialize = useCallback(async () => {
-    if (audioState !== 'stopped') return
+    if (useAudioStore.getState().audioState !== 'stopped') return
     setAudioState('initializing')
 
-    await audioEngine.init()
-    initWorkspace()
-    setAudioState('running')
-  }, [audioState, initWorkspace])
+    try {
+      await audioEngine.init()
+      initWorkspace()
+      const ctx = audioEngine.getContext()
+      setAudioState(ctx.state === 'running' ? 'running' : 'stopped')
+    } catch (err) {
+      setAudioState('stopped')
+      throw err
+    }
+  }, [initWorkspace, setAudioState])
 
   const toggle = useCallback(async () => {
-    if (audioState === 'stopped') {
+    const state = useAudioStore.getState().audioState
+    if (state === 'stopped') {
       await initialize()
       return
     }
 
     const ctx = audioEngine.getContext()
     if (ctx.state === 'running') {
-      ctx.suspend()
+      await ctx.suspend()
       setAudioState('stopped')
     } else {
-      ctx.resume()
+      await ctx.resume()
       setAudioState('running')
     }
-  }, [audioState, initialize])
+  }, [initialize, setAudioState])
 
   return {
     audioState,

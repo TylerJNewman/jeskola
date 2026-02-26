@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useAudioEngine } from '@/hooks/use-audio-engine'
 import { exportPatch, importPatch } from '@/lib/patch-serialization'
+import { Button } from '@/components/ui/button'
 
 export function FileControls() {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -39,19 +40,23 @@ export function FileControls() {
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <button
+    <div className="flex items-center gap-2.5">
+      <Button
         onClick={handleSave}
-        className="text-[10px] uppercase tracking-wide px-2.5 py-1 bg-panel border border-border rounded-[4px] text-text-light hover:border-accent-orange transition-colors cursor-pointer"
+        variant="rams"
+        size="rams-toolbar-box"
+        className="transition-colors hover:border-accent-orange"
       >
         Save
-      </button>
-      <button
+      </Button>
+      <Button
         onClick={handleLoad}
-        className="text-[10px] uppercase tracking-wide px-2.5 py-1 bg-panel border border-border rounded-[4px] text-text-light hover:border-accent-orange transition-colors cursor-pointer"
+        variant="rams"
+        size="rams-toolbar-box"
+        className="transition-colors hover:border-accent-orange"
       >
         Load
-      </button>
+      </Button>
       <input
         ref={fileInputRef}
         type="file"

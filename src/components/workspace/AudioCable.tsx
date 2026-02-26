@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { getBezierPath, type EdgeProps } from '@xyflow/react'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
 
 export type AudioCableData = {
   connectionType: 'audio' | 'cv' | 'gate'
@@ -22,6 +23,7 @@ function AudioCableInner(props: EdgeProps) {
     sourceY,
     targetX,
     targetY,
+    curvature: 0.18,
   })
 
   return (
@@ -31,14 +33,17 @@ function AudioCableInner(props: EdgeProps) {
         d={edgePath}
         fill="none"
         stroke="transparent"
-        strokeWidth={12}
+        strokeWidth={WORKSPACE_LAYOUT.cables.interactionStroke}
+        strokeLinecap="round"
       />
       {/* Visible cable */}
       <path
         d={edgePath}
         fill="none"
         stroke={color}
-        strokeWidth={2.5}
+        strokeWidth={WORKSPACE_LAYOUT.cables.visibleStroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
         className="group-hover:!stroke-accent-orange transition-colors"
       />
     </g>

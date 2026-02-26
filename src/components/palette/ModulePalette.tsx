@@ -1,6 +1,9 @@
 import { MODULE_TYPES, MODULE_LABELS } from '@/lib/module-registry'
 import type { ModuleType } from '@/lib/module-registry'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 
 export function ModulePalette() {
   const addModule = useWorkspaceStore(s => s.addModule)
@@ -12,20 +15,38 @@ export function ModulePalette() {
   }
 
   return (
-    <aside className="fixed right-0 top-[44px] bottom-0 w-[140px] bg-panel border-l border-border-light z-[50] flex flex-col gap-2 p-3">
-      <h2 className="text-[10px] font-semibold uppercase tracking-[1px] text-text-muted mb-2">
+    <aside
+      className="fixed z-[50]"
+      style={{
+        right: WORKSPACE_LAYOUT.palette.rightOffset,
+        top: WORKSPACE_LAYOUT.palette.topOffset,
+        width: WORKSPACE_LAYOUT.palette.width,
+      }}
+    >
+      <Card variant="rams" className="shadow-md" style={{ borderRadius: WORKSPACE_LAYOUT.module.radius }}>
+      <CardContent className="flex flex-col" style={{ padding: WORKSPACE_LAYOUT.palette.padding, gap: WORKSPACE_LAYOUT.palette.gap }}>
+      <h2 className="text-[10px] font-semibold uppercase tracking-[1px] text-text-muted" style={{ marginBottom: WORKSPACE_LAYOUT.palette.headingMarginBottom }}>
         Modules
       </h2>
       {MODULE_TYPES.map(type => (
-        <button
+        <Button
           key={type}
           onClick={() => handleAdd(type)}
           disabled={!initialized}
-          className="text-[10px] uppercase tracking-wide px-2 py-1.5 bg-bg border border-border rounded-[4px] text-text-light hover:border-accent-orange hover:text-accent-orange transition-colors cursor-pointer text-left disabled:opacity-40 disabled:cursor-not-allowed"
+          variant="rams"
+          size="rams"
+          className="transition-colors hover:border-accent-orange hover:text-accent-orange disabled:opacity-40 disabled:cursor-not-allowed text-left"
+          style={{
+            justifyContent: 'flex-start',
+            paddingLeft: WORKSPACE_LAYOUT.palette.buttonPaddingX,
+            paddingRight: WORKSPACE_LAYOUT.palette.buttonPaddingX,
+          }}
         >
           + {MODULE_LABELS[type]}
-        </button>
+        </Button>
       ))}
+      </CardContent>
+      </Card>
     </aside>
   )
 }

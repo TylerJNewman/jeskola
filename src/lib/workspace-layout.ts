@@ -1,0 +1,36 @@
+export const WORKSPACE_LAYOUT = {
+  module: {
+    minWidth: 260,
+    radius: 6,
+    headerPaddingX: 18,
+    headerPaddingY: 12,
+    bodyPaddingX: 18,
+    bodyPaddingY: 18,
+    bodyGap: 18,
+    controlRowGap: 16,
+    compactRowGap: 12,
+    handleSize: 12,
+    handleBorder: 2,
+    handleStartOffset: 76,
+    handleRowGap: 38,
+  },
+  palette: {
+    width: 164,
+    topOffset: 78,
+    rightOffset: 24,
+    padding: 16,
+    gap: 12,
+    headingMarginBottom: 8,
+    buttonPaddingX: 8,
+    buttonPaddingY: 7,
+  },
+  cables: {
+    visibleStroke: 4,
+    interactionStroke: 14,
+  },
+  canvas: {
+    dotGap: 20,
+    dotSize: 1,
+    dotColor: 'rgba(0, 0, 0, 0.08)',
+  },
+} as const

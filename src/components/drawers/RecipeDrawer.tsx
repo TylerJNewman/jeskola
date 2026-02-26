@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   RECIPE_LABELS, RECIPE_ORDER,
   RECIPE_DESCRIPTIONS, RECIPE_MORPH_LABELS,
@@ -6,6 +6,7 @@ import {
 } from '@/lib/presets'
 import { importPatch } from '@/lib/patch-serialization'
 import { useAudioEngine } from '@/hooks/use-audio-engine'
+import { Button } from '@/components/ui/button'
 
 export function RecipeDrawer() {
   const [selected, setSelected] = useState('')
@@ -13,6 +14,14 @@ export function RecipeDrawer() {
   const [morphValue, setMorphValue] = useState(0)
   const morphTimerRef = useRef<number | null>(null)
   const { initialize, audioState } = useAudioEngine()
+
+  useEffect(() => {
+    return () => {
+      if (morphTimerRef.current !== null) {
+        window.clearTimeout(morphTimerRef.current)
+      }
+    }
+  }, [])
 
   const description = selected ? (RECIPE_DESCRIPTIONS[selected] || '') : ''
   const morphLabel = activeRecipe ? (RECIPE_MORPH_LABELS[activeRecipe] || 'Morph') : 'Morph'
@@ -54,7 +63,7 @@ export function RecipeDrawer() {
       <select
         value={selected}
         onChange={e => setSelected(e.target.value)}
-        className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+        className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
       >
         <option value="">Select a Recipe...</option>
         {RECIPE_ORDER.map(key => (
@@ -70,13 +79,15 @@ export function RecipeDrawer() {
         </p>
       )}
 
-      <button
+      <Button
         onClick={handleLoad}
         disabled={!selected}
-        className="text-[10px] uppercase tracking-wide px-3 py-1.5 bg-panel border border-border rounded-[4px] text-text-light hover:border-accent-orange disabled:opacity-40 transition-colors cursor-pointer disabled:cursor-default"
+        variant="rams"
+        size="rams"
+        className="w-full transition-colors hover:border-accent-orange disabled:opacity-40"
       >
         Load Recipe
-      </button>
+      </Button>
 
       {/* Morph slider */}
       <div className="flex flex-col gap-1.5">

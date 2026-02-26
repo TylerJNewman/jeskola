@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { PRESETS, PRESET_LABELS, PRESET_ORDER } from '@/lib/presets'
 import { importPatch } from '@/lib/patch-serialization'
 import { useAudioEngine } from '@/hooks/use-audio-engine'
+import { Button } from '@/components/ui/button'
 
 export function PresetDrawer() {
   const [selected, setSelected] = useState('')
@@ -18,7 +19,7 @@ export function PresetDrawer() {
       <select
         value={selected}
         onChange={e => setSelected(e.target.value)}
-        className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+        className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
       >
         <option value="">Select a Preset...</option>
         {PRESET_ORDER.map(key => (
@@ -27,13 +28,15 @@ export function PresetDrawer() {
           </option>
         ))}
       </select>
-      <button
+      <Button
         onClick={handleLoad}
         disabled={!selected}
-        className="text-[10px] uppercase tracking-wide px-3 py-1.5 bg-panel border border-border rounded-[4px] text-text-light hover:border-accent-orange disabled:opacity-40 transition-colors cursor-pointer disabled:cursor-default"
+        variant="rams"
+        size="rams"
+        className="w-full transition-colors hover:border-accent-orange disabled:opacity-40"
       >
         Load Preset
-      </button>
+      </Button>
     </div>
   )
 }

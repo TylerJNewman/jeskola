@@ -4,6 +4,7 @@ import { AudioToggle } from './AudioToggle'
 import { SectionChips } from '@/components/drawers/SectionDrawer'
 import type { Section } from '@/components/drawers/SectionDrawer'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 export function Toolbar({
   onSectionToggle,
@@ -15,35 +16,36 @@ export function Toolbar({
   applyOpen: boolean
 }) {
   return (
-    <header className="h-[44px] bg-panel border-b border-border-light shadow-sm flex items-center px-4 z-[100] shrink-0 gap-4">
-      <h1 className="text-sm font-semibold tracking-[2px] text-text-main mr-2">
-        SYNTHESIS
-      </h1>
+    <header className="fixed top-0 left-0 right-0 h-[50px] bg-panel border-b border-border-light shadow-sm z-[100]">
+      <div className="h-full w-[calc(100%-96px)] max-w-[1400px] mx-auto px-4 flex items-center gap-5">
+        <TransportControls />
 
-      <div className="w-px h-5 bg-border-light" />
-      <TransportControls />
+        <div className="w-px h-6 bg-border-light" />
+        <FileControls />
 
-      <div className="w-px h-5 bg-border-light" />
-      <FileControls />
+        <div className="w-px h-6 bg-border-light" />
+        <div className="flex items-center gap-2">
+          <SectionChips onToggle={onSectionToggle} />
+        </div>
 
-      <div className="w-px h-5 bg-border-light" />
-      <SectionChips onToggle={onSectionToggle} />
+        <div className="w-px h-6 bg-border-light" />
+        <Button
+          onClick={onApplyToggle}
+          variant={applyOpen ? 'rams-primary' : 'rams'}
+          size="rams-toolbar-box"
+          className={cn(
+            "transition-colors",
+            applyOpen
+              ? ""
+              : "hover:border-accent-orange"
+          )}
+        >
+          Apply
+        </Button>
 
-      <div className="w-px h-5 bg-border-light" />
-      <button
-        onClick={onApplyToggle}
-        className={cn(
-          "text-[10px] uppercase tracking-wide px-2.5 py-1 border rounded-[4px] transition-colors cursor-pointer",
-          applyOpen
-            ? "bg-accent-orange text-white border-accent-orange"
-            : "bg-panel border-border text-text-light hover:border-accent-orange"
-        )}
-      >
-        Apply
-      </button>
-
-      <div className="flex-1" />
-      <AudioToggle />
+        <div className="flex-1" />
+        <AudioToggle />
+      </div>
     </header>
   )
 }

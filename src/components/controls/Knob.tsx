@@ -189,13 +189,13 @@ function KnobInner({
 
   return (
     <div className={cn("flex flex-col items-center gap-1", className)}>
-      <span className="text-[10px] font-medium uppercase text-text-muted">
+      <span className="text-[12px] font-medium uppercase tracking-[0.4px] text-text-main">
         {label}
       </span>
 
       <div
         ref={containerRef}
-        className="w-11 h-11 rounded-full bg-panel border border-border shadow-knob flex items-center justify-center cursor-ns-resize relative"
+        className="w-16 h-16 rounded-full bg-panel border border-border shadow-knob flex items-center justify-center cursor-ns-resize relative"
         onMouseDown={(e) => {
           e.stopPropagation()
           handleStart(e.clientY)
@@ -207,21 +207,21 @@ function KnobInner({
         onDoubleClick={handleDoubleClick}
       >
         <div
-          className="knob-indicator w-8 h-8 rounded-full bg-panel relative"
+          className="knob-indicator w-12 h-12 rounded-full bg-panel relative"
           style={{ transform: `rotate(${degrees}deg)` }}
         >
-          <div className="absolute top-0.5 left-1/2 -translate-x-1/2 w-[3px] h-2 rounded-full bg-accent-orange" />
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-[3px] h-2.5 rounded-full bg-accent-orange" />
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
-        <span className="knob-value text-[10px] text-text-muted tabular-nums">
+      <div className="flex items-center gap-1.5">
+        <span className="knob-value text-[12px] text-accent-orange tabular-nums">
           {formatValue(value)}
         </span>
         {logCapable && (
           <button
             onClick={handleToggle}
-            className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded border border-border-light text-text-muted hover:text-accent-blue cursor-pointer transition-colors"
+            className="text-[8px] uppercase tracking-wide px-1.5 py-0.5 rounded-[4px] border border-border-light bg-[#b0b0b0] text-white hover:bg-[#9f9f9f] cursor-pointer transition-colors"
             title="Toggle Scale"
           >
             {logMode ? 'LOG' : 'LIN'}

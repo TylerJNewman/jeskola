@@ -19,6 +19,12 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        rams:
+          "bg-panel border border-border text-text-light hover:border-accent-orange",
+        "rams-primary":
+          "bg-accent-orange border border-accent-orange text-white hover:opacity-90",
+        "rams-text":
+          "bg-transparent border-transparent text-text-muted hover:text-text-main hover:bg-transparent shadow-none",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -29,6 +35,10 @@ const buttonVariants = cva(
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        "rams-tight": "h-6 px-2.5 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px]",
+        rams: "h-7 px-3 py-0.5 text-[10px] uppercase tracking-wide rounded-[4px]",
+        "rams-bar": "h-8 px-4 py-0 text-[11px] uppercase tracking-[0.4px] rounded-[4px]",
+        "rams-toolbar-box": "h-8 px-5 py-0 text-[11px] uppercase tracking-[0.45px] rounded-[4px]",
       },
     },
     defaultVariants: {

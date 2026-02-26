@@ -2,6 +2,8 @@ import { useCallback, useState } from 'react'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import type { KeyboardModule } from '@/audio/nodes/KeyboardModule'
 import { registerModuleBody } from '@/lib/module-body-registry'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
+import { Button } from '@/components/ui/button'
 
 function KeyboardBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
@@ -33,23 +35,27 @@ function KeyboardBody({ moduleId }: { moduleId: string }) {
   const signedOct = octave >= 0 ? `+${octave}` : String(octave)
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-center gap-2">
-        <button
+    <div className="flex flex-col" style={{ gap: WORKSPACE_LAYOUT.module.bodyGap }}>
+      <div className="flex items-center justify-center" style={{ gap: WORKSPACE_LAYOUT.module.controlRowGap }}>
+        <Button
           onClick={handleOctaveDown}
-          className="text-[10px] px-2 py-0.5 bg-bg border border-border rounded-[4px] text-text-light hover:border-accent-orange cursor-pointer"
+          variant="rams"
+          size="rams-tight"
+          className="bg-bg hover:border-accent-orange"
         >
           -
-        </button>
+        </Button>
         <span className="text-[10px] font-medium text-text-muted tabular-nums min-w-[52px] text-center">
           OCT: {signedOct}
         </span>
-        <button
+        <Button
           onClick={handleOctaveUp}
-          className="text-[10px] px-2 py-0.5 bg-bg border border-border rounded-[4px] text-text-light hover:border-accent-orange cursor-pointer"
+          variant="rams"
+          size="rams-tight"
+          className="bg-bg hover:border-accent-orange"
         >
           +
-        </button>
+        </Button>
       </div>
 
       <label className="flex items-center gap-2 justify-center cursor-pointer">

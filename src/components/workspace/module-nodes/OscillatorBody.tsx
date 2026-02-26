@@ -4,6 +4,7 @@ import { SegmentToggle } from '@/components/controls/SegmentToggle'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import type { OscillatorModule } from '@/audio/nodes/OscillatorModule'
 import { registerModuleBody } from '@/lib/module-body-registry'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
 
 const WAVEFORM_OPTIONS = [
   { value: 'sine', label: 'Sin' },
@@ -26,38 +27,38 @@ function OscillatorBody({ moduleId }: { moduleId: string }) {
 
   const handleOctave = useCallback((val: number) => {
     audio!.setOctave(val)
-    audio!.state = { ...audio!.state, octave: val }
+    audio!.patchState({ octave: val })
   }, [audio])
 
   const handleSemitone = useCallback((val: number) => {
     audio!.setSemitone(val)
-    audio!.state = { ...audio!.state, semitone: val }
+    audio!.patchState({ semitone: val })
   }, [audio])
 
   const handleCents = useCallback((val: number) => {
     audio!.setCents(val)
-    audio!.state = { ...audio!.state, cents: val }
+    audio!.patchState({ cents: val })
   }, [audio])
 
   const handleFreq = useCallback((val: number) => {
     audio!.setFreq(val)
-    audio!.state = { ...audio!.state, freq: val }
+    audio!.patchState({ freq: val })
   }, [audio])
 
   const handleMode = useCallback((val: string) => {
     audio!.setMode(val as 'pitch' | 'freq')
-    audio!.state = { ...audio!.state, mode: val }
+    audio!.patchState({ mode: val })
     rerender()
   }, [audio])
 
   const handleType = useCallback((val: string) => {
     audio!.setType(val as OscillatorType)
-    audio!.state = { ...audio!.state, type: val }
+    audio!.patchState({ type: val })
     rerender()
   }, [audio])
 
   const handleFreqLogToggle = useCallback((isLog: boolean) => {
-    audio!.state = { ...audio!.state, freqLog: isLog }
+    audio!.patchState({ freqLog: isLog })
   }, [audio])
 
   if (!audio) return null
@@ -71,13 +72,13 @@ function OscillatorBody({ moduleId }: { moduleId: string }) {
   const mode = state.mode || 'pitch'
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col" style={{ gap: WORKSPACE_LAYOUT.module.bodyGap }}>
       <div className="flex justify-center">
         <SegmentToggle options={MODE_OPTIONS} value={mode} onChange={handleMode} />
       </div>
 
       {mode === 'pitch' && (
-        <div className="flex gap-2 justify-center">
+        <div className="flex justify-center" style={{ gap: WORKSPACE_LAYOUT.module.controlRowGap }}>
           <Knob label="OCT" min={-3} max={3} value={state.octave ?? 0} defaultValue={0} onChange={handleOctave} step={1} />
           <Knob label="COARSE" min={-12} max={12} value={state.semitone ?? 0} defaultValue={0} onChange={handleSemitone} step={1} />
           <Knob label="FINE" min={-100} max={100} value={state.cents ?? 0} defaultValue={0} onChange={handleCents} />

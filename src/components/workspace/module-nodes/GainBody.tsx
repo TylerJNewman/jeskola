@@ -3,6 +3,7 @@ import { Knob } from '@/components/controls/Knob'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import type { GainModule } from '@/audio/nodes/GainModule'
 import { registerModuleBody } from '@/lib/module-body-registry'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
 
 function GainBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
@@ -10,7 +11,7 @@ function GainBody({ moduleId }: { moduleId: string }) {
 
   const handleLevel = useCallback((val: number) => {
     audio!.setGain(val)
-    audio!.state = { ...audio!.state, level: val }
+    audio!.patchState({ level: val })
   }, [audio])
 
   if (!audio) return null
@@ -18,7 +19,7 @@ function GainBody({ moduleId }: { moduleId: string }) {
   const state = audio.state as { level: number }
 
   return (
-    <div className="flex justify-center">
+    <div className="flex justify-center" style={{ gap: WORKSPACE_LAYOUT.module.controlRowGap }}>
       <Knob
         label="LEVEL"
         min={0}

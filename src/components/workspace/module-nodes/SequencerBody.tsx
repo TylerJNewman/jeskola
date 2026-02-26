@@ -5,6 +5,7 @@ import type { SequencerModule } from '@/audio/nodes/SequencerModule'
 import { NO_VALUE, midiToNoteName } from '@/audio/sequencer/types'
 import { transport } from '@/audio/Transport'
 import { registerModuleBody } from '@/lib/module-body-registry'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
 
 const PATTERN_LENGTHS = [4, 8, 16, 32]
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -21,21 +22,19 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
 
   useEffect(() => {
     if (!audio) return
+
     audio.onStepChange = (step: number) => {
       setCurrentStep(step)
     }
 
-    const animate = () => {
-      if (transport.isPlaying) {
-        setCurrentStep(audio.currentStep)
+    const stopHandler = () => {
+      setCurrentStep(-1)
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
       }
-      rafRef.current = requestAnimationFrame(animate)
     }
-
-    const stopHandler = () => setCurrentStep(-1)
     transport.onStop(stopHandler)
-
-    rafRef.current = requestAnimationFrame(animate)
 
     return () => {
       audio.onStepChange = undefined
@@ -146,13 +145,13 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 relative">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col relative" style={{ gap: WORKSPACE_LAYOUT.module.bodyGap }}>
+      <div className="flex items-center" style={{ gap: WORKSPACE_LAYOUT.module.compactRowGap }}>
         <span className="text-[9px] uppercase text-text-muted">Steps</span>
         <select
           value={pattern.length}
           onChange={handleLengthChange}
-          className="text-[10px] bg-bg border border-border rounded-[4px] px-1 py-0.5 text-text-light"
+          className="control-btn-tight text-[10px] bg-bg border border-border rounded-[4px] text-text-light"
         >
           {PATTERN_LENGTHS.map(l => (
             <option key={l} value={l}>{l}</option>
@@ -181,14 +180,14 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
           <div className="flex items-center gap-2 mb-2">
             <button
               onClick={() => setPickerOctave(o => Math.max(0, o - 1))}
-              className="text-[10px] px-1.5 py-0.5 bg-bg border border-border rounded-[4px] cursor-pointer"
+              className="control-btn-tight text-[10px] bg-bg border border-border rounded-[4px] cursor-pointer"
             >
               -
             </button>
             <span className="text-[10px] text-text-muted">Oct {pickerOctave}</span>
             <button
               onClick={() => setPickerOctave(o => Math.min(8, o + 1))}
-              className="text-[10px] px-1.5 py-0.5 bg-bg border border-border rounded-[4px] cursor-pointer"
+              className="control-btn-tight text-[10px] bg-bg border border-border rounded-[4px] cursor-pointer"
             >
               +
             </button>
@@ -216,7 +215,7 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
         </div>
       )}
 
-      <div className="flex gap-3 justify-center">
+      <div className="flex justify-center" style={{ gap: WORKSPACE_LAYOUT.module.controlRowGap }}>
         <Knob
           label="OCT"
           min={-3} max={3}

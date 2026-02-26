@@ -25,7 +25,7 @@ export class DelayModule extends ModularNode {
     this.delay.delayTime.value = 0.4;
     this.feedback.gain.value = 0.4;
     this.mix.gain.value = 0.5;
-    this.dry.gain.value = 0.8;
+    this.dry.gain.value = 0.5;
 
     // Routing
     // Input splits into Dry and Delay

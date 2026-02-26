@@ -1,5 +1,6 @@
 import { useTransportStore } from '@/stores/transport-store'
 import { useAudioEngine } from '@/hooks/use-audio-engine'
+import { Button } from '@/components/ui/button'
 
 export function TransportControls() {
   const { isPlaying, bpm, setBpm, play, stop } = useTransportStore()
@@ -19,26 +20,28 @@ export function TransportControls() {
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <button
+    <div className="flex items-center gap-2.5">
+      <Button
         onClick={handlePlayStop}
-        className={`text-[10px] uppercase tracking-wide px-2.5 py-1 border rounded-[4px] transition-colors cursor-pointer ${
+        variant={isPlaying ? 'rams-primary' : 'rams'}
+        size="rams-toolbar-box"
+        className={`transition-colors ${
           isPlaying
-            ? 'bg-accent-orange text-white border-accent-orange'
-            : 'bg-panel border-border text-text-light hover:border-accent-orange'
+            ? ''
+            : 'hover:border-accent-orange'
         }`}
       >
         {isPlaying ? '■ STOP' : '▶ PLAY'}
-      </button>
+      </Button>
       <input
         type="number"
         value={bpm}
         onChange={handleBpmChange}
         min={20}
         max={300}
-        className="w-14 text-[11px] text-center bg-bg border border-border rounded-[4px] px-1 py-1 text-text-main tabular-nums focus:outline-none focus:border-accent-orange"
+        className="h-8 w-16 text-[11px] text-center bg-bg border border-border rounded-[4px] px-2 text-text-main tabular-nums focus:outline-none focus:border-accent-orange"
       />
-      <span className="text-[9px] text-text-muted uppercase">BPM</span>
+      <span className="text-[11px] text-text-muted uppercase tracking-[0.4px]">BPM</span>
     </div>
   )
 }

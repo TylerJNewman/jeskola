@@ -16,6 +16,7 @@ import type { ModuleNodeData } from './ModuleNode'
 import { AudioCable } from './AudioCable'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { MODULE_PORTS } from '@/lib/module-registry'
+import { WORKSPACE_LAYOUT } from '@/lib/workspace-layout'
 
 const nodeTypes = { module: ModuleNode }
 const edgeTypes = { audio: AudioCable }
@@ -36,6 +37,7 @@ export function WorkspaceCanvas() {
         label: m.type === 'master' ? 'Master Out' : m.type.charAt(0).toUpperCase() + m.type.slice(1),
         moduleType: m.type,
         moduleId: m.id,
+        ...(m.type === 'master' && { subtitle: 'Audio Output' }),
       } satisfies ModuleNodeData,
     }))
   }, [modules])
@@ -106,9 +108,9 @@ export function WorkspaceCanvas() {
     >
       <Background
         variant={BackgroundVariant.Dots}
-        gap={20}
-        size={1}
-        color="rgba(0, 0, 0, 0.1)"
+        gap={WORKSPACE_LAYOUT.canvas.dotGap}
+        size={WORKSPACE_LAYOUT.canvas.dotSize}
+        color={WORKSPACE_LAYOUT.canvas.dotColor}
       />
       <MiniMap
         nodeColor={() => '#FAFAFA'}

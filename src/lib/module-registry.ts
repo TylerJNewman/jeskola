@@ -38,18 +38,6 @@ export const MODULE_TYPES: ModuleType[] = [
   'delay', 'distortion', 'gain', 'sequencer',
 ]
 
-export const DEFAULT_STATES: Record<ModuleType, Record<string, unknown>> = {
-  oscillator: { octave: 0, semitone: 0, cents: 0, freq: 440, type: 'sine', mode: 'pitch' },
-  filter: { cutoff: 1000, res: 1, type: 'lowpass' },
-  delay: { time: 0.4, feedback: 0.4, mix: 0.5 },
-  distortion: { drive: 1.0, mix: 0.5, output: 0.8 },
-  gain: { level: 0.5 },
-  adsr: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.5 },
-  lfo: { rate: 1.0, depth: 0.5, type: 'sine' },
-  sequencer: {},
-  keyboard: { octaveOffset: 0, baseMidi: 60, enabled: true },
-}
-
 export function createAudioNode(type: ModuleType): ModularNode {
   switch (type) {
     case 'oscillator': return new OscillatorModule()

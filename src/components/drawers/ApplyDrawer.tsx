@@ -10,6 +10,8 @@ import { previewApply, applyPatch } from '@/lib/apply-engine'
 import type { ApplyMode, ApplyTarget, ApplySummary } from '@/lib/apply-engine'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useAudioEngine } from '@/hooks/use-audio-engine'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const STACK_COMBOS = [
   { label: 'Acid Movement', baseKey: 'acid-drive', modifiers: ['slow-wobble', 'envelope-pump'] },
@@ -108,20 +110,21 @@ export function ApplyDrawer({ open, onClose }: { open: boolean; onClose: () => v
   if (!open) return null
 
   return (
-    <aside className="fixed right-[140px] top-[44px] w-[260px] bg-panel border-l border-border-light shadow-md z-[90] max-h-[calc(100vh-44px)] overflow-y-auto">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border-light">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[1px] text-text-muted">Apply</h2>
+    <aside className="fixed right-[140px] top-[48px] w-[260px] z-[90] max-h-[calc(100vh-48px)]">
+      <Card variant="rams" className="h-full max-h-[calc(100vh-48px)] overflow-y-auto rounded-none border-r-0 border-t-0 border-b-0 border-l border-border-light shadow-md">
+      <CardHeader className="flex-row items-center justify-between px-4 py-2.5 border-b border-border-light">
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[1px] text-text-muted">Apply</CardTitle>
         <button onClick={onClose} className="text-text-muted hover:text-accent-orange cursor-pointer text-sm">
           ×
         </button>
-      </div>
+      </CardHeader>
 
-      <div className="p-4 flex flex-col gap-2.5">
+      <CardContent className="p-4 flex flex-col gap-2.5">
         {/* Source type */}
         <select
           value={sourceType}
           onChange={e => { setSourceType(e.target.value as 'preset' | 'stack' | 'recipe'); setSourceKey('') }}
-          className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+          className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
         >
           <option value="preset">PRESET</option>
           <option value="stack">STACK</option>
@@ -132,7 +135,7 @@ export function ApplyDrawer({ open, onClose }: { open: boolean; onClose: () => v
         <select
           value={sourceKey}
           onChange={e => setSourceKey(e.target.value)}
-          className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+          className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
         >
           <option value="">Select source...</option>
           {sourceItems.map(item => (
@@ -144,7 +147,7 @@ export function ApplyDrawer({ open, onClose }: { open: boolean; onClose: () => v
         <select
           value={mode}
           onChange={e => setMode(e.target.value as ApplyMode)}
-          className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+          className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
         >
           {MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
@@ -153,7 +156,7 @@ export function ApplyDrawer({ open, onClose }: { open: boolean; onClose: () => v
         <select
           value={targetType}
           onChange={e => setTargetType(e.target.value as ApplyTarget)}
-          className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+          className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
         >
           {TARGET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
@@ -162,7 +165,7 @@ export function ApplyDrawer({ open, onClose }: { open: boolean; onClose: () => v
         <select
           value={targetModuleId}
           onChange={e => setTargetModuleId(e.target.value)}
-          className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+          className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
         >
           <option value="">Target Module (auto)</option>
           {modules.map(m => (
@@ -180,22 +183,27 @@ export function ApplyDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
         {/* Actions */}
         <div className="flex gap-2">
-          <button
+          <Button
             onClick={handleApply}
             disabled={!sourceKey}
-            className="flex-1 text-[10px] uppercase tracking-wide py-1.5 bg-accent-orange text-white rounded-[4px] hover:opacity-90 disabled:opacity-40 transition-opacity cursor-pointer disabled:cursor-default"
+            variant="rams-primary"
+            size="rams"
+            className="flex-1 hover:opacity-90 disabled:opacity-40"
           >
             Apply
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleReplace}
             disabled={!sourceKey}
-            className="text-[10px] uppercase tracking-wide px-2.5 py-1.5 bg-panel border border-border rounded-[4px] text-text-light hover:border-accent-orange disabled:opacity-40 transition-colors cursor-pointer disabled:cursor-default"
+            variant="rams"
+            size="rams"
+            className="transition-colors hover:border-accent-orange disabled:opacity-40"
           >
             Replace
-          </button>
+          </Button>
         </div>
-      </div>
+      </CardContent>
+      </Card>
     </aside>
   )
 }

@@ -24,6 +24,9 @@
     "test:distortion-preset": "node test_distortion_preset.js",
     "test:rapid-switch": "node test_rapid_import_switch.js",
     "test:duplicate-import": "node test_duplicate_id_import.js",
+    "test:workspace-layout": "node test_workspace_layout_assertions.js",
+    "test:workspace-visual": "node test_workspace_visual_regression.js",
+    "test:workspace-visual:update": "UPDATE_VISUAL_BASELINES=1 node test_workspace_visual_regression.js",
     "test:regression": "bash -lc '(npm run -s dev >/tmp/jeskola-dev.log 2>&1 &) ; DEV_PID=$!; trap \"kill $DEV_PID 2>/dev/null || true\" EXIT; sleep 2; npm run -s test:preset-integrity && node test_toolbar_layout.js && node test_distortion_preset.js && node test_composed_preset_load.js && node test_stacked_builder.js && node test_stack_preset_load.js && node test_recipe_load.js && node test_apply_add_chain.js && node test_apply_add_modulation.js && node test_apply_add_send.js && node test_apply_preview_summary.js && node test_keyboard_trigger_basic.js && node test_keyboard_mono_priority.js && node test_keyboard_focus_guard.js && node test_keyboard_blur_cleanup.js && node test_rapid_import_switch.js && node test_duplicate_id_import.js'"
   },
   "devDependencies": {

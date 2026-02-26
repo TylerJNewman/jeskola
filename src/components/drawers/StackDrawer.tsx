@@ -6,6 +6,7 @@ import {
 } from '@/lib/presets'
 import { importPatch } from '@/lib/patch-serialization'
 import { useAudioEngine } from '@/hooks/use-audio-engine'
+import { Button } from '@/components/ui/button'
 
 const STACK_PRESET_COMBOS = [
   { label: 'Acid Movement', baseKey: 'acid-drive', modifiers: ['slow-wobble', 'envelope-pump'] },
@@ -21,7 +22,7 @@ function ModifierSelect({ label, value, onChange }: { label: string; value: stri
       value={value}
       onChange={e => onChange(e.target.value)}
       title={label}
-      className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+      className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
     >
       <option value="">{label}</option>
       {STACK_MODIFIER_ORDER.map(key => (
@@ -80,20 +81,22 @@ export function StackDrawer() {
         <select
           value={comboIndex}
           onChange={e => setComboIndex(e.target.value)}
-          className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light flex-1 focus:outline-none focus:border-accent-orange"
+          className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light flex-1 focus:outline-none focus:border-accent-orange"
         >
           <option value="">Stack Presets...</option>
           {STACK_PRESET_COMBOS.map((c, i) => (
             <option key={i} value={String(i)}>{c.label}</option>
           ))}
         </select>
-        <button
+        <Button
           onClick={loadCombo}
           disabled={comboIndex === ''}
-          className="text-[10px] uppercase tracking-wide px-2.5 py-1.5 bg-panel border border-border rounded-[4px] text-text-light hover:border-accent-orange disabled:opacity-40 transition-colors cursor-pointer disabled:cursor-default whitespace-nowrap"
+          variant="rams"
+          size="rams"
+          className="transition-colors hover:border-accent-orange disabled:opacity-40 whitespace-nowrap"
         >
           Load
-        </button>
+        </Button>
       </div>
 
       <div className="w-full h-px bg-border-light" />
@@ -106,7 +109,7 @@ export function StackDrawer() {
       <select
         value={baseKey}
         onChange={e => setBaseKey(e.target.value)}
-        className="text-[11px] bg-bg border border-border rounded-[4px] px-2 py-1.5 text-text-light w-full focus:outline-none focus:border-accent-orange"
+        className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
       >
         {STACK_BASE_ORDER.map(key => (
           <option key={key} value={key}>
@@ -119,12 +122,14 @@ export function StackDrawer() {
       <ModifierSelect label="Modifier 2" value={mod2} onChange={setMod2} />
       <ModifierSelect label="Modifier 3" value={mod3} onChange={setMod3} />
 
-      <button
+      <Button
         onClick={loadStack}
-        className="text-[10px] uppercase tracking-wide px-3 py-1.5 bg-panel border border-border rounded-[4px] text-text-light hover:border-accent-orange transition-colors cursor-pointer"
+        variant="rams"
+        size="rams"
+        className="w-full transition-colors hover:border-accent-orange"
       >
         Load Stack
-      </button>
+      </Button>
 
       <span className="text-[9px] text-text-muted">
         Pick a base + up to 3 modifiers, or use a Stack Preset.
