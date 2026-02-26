@@ -7,14 +7,15 @@ import { registerModuleBody } from '@/lib/module-body-registry'
 function GainBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
   const audio = entry?.audioNode as GainModule | undefined
+
+  const handleLevel = useCallback((val: number) => {
+    audio!.setGain(val)
+    audio!.state = { ...audio!.state, level: val }
+  }, [audio])
+
   if (!audio) return null
 
   const state = audio.state as { level: number }
-
-  const handleLevel = useCallback((val: number) => {
-    audio.setGain(val)
-    audio.state = { ...audio.state, level: val }
-  }, [audio])
 
   return (
     <div className="flex justify-center">

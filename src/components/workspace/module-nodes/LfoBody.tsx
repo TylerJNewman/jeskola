@@ -15,27 +15,29 @@ const WAVEFORM_OPTIONS = [
 function LfoBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
   const audio = entry?.audioNode as LfoModule | undefined
-  if (!audio) return null
 
-  const state = audio.state as { rate: number; depth: number; type: string }
   const [, forceUpdate] = useState(0)
   const rerender = () => forceUpdate(n => n + 1)
 
   const handleRate = useCallback((val: number) => {
-    audio.setRate(val)
-    audio.state = { ...audio.state, rate: val }
+    audio!.setRate(val)
+    audio!.state = { ...audio!.state, rate: val }
   }, [audio])
 
   const handleDepth = useCallback((val: number) => {
-    audio.setDepth(val)
-    audio.state = { ...audio.state, depth: val }
+    audio!.setDepth(val)
+    audio!.state = { ...audio!.state, depth: val }
   }, [audio])
 
   const handleType = useCallback((val: string) => {
-    audio.setType(val as OscillatorType)
-    audio.state = { ...audio.state, type: val }
+    audio!.setType(val as OscillatorType)
+    audio!.state = { ...audio!.state, type: val }
     rerender()
   }, [audio])
+
+  if (!audio) return null
+
+  const state = audio.state as { rate: number; depth: number; type: string }
 
   return (
     <div className="flex flex-col gap-2">

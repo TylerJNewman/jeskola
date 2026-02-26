@@ -19,12 +19,8 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
   const [pickerOctave, setPickerOctave] = useState(4)
   const rafRef = useRef<number | null>(null)
 
-  if (!audio) return null
-
-  const pattern = audio.pattern
-  const steps = pattern.steps
-
   useEffect(() => {
+    if (!audio) return
     audio.onStepChange = (step: number) => {
       setCurrentStep(step)
     }
@@ -51,7 +47,8 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
   }, [audio])
 
   const handleStepClick = useCallback((index: number) => {
-    const step = steps[index]
+    if (!audio) return
+    const step = audio.pattern.steps[index]
     if (!step) return
 
     if (step.gate) {
@@ -61,21 +58,23 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
       audio.setStep(index, { gate: true, note, velocity: 1 })
     }
     rerender()
-  }, [audio, steps])
+  }, [audio])
 
   const handleStepRightClick = useCallback((e: React.MouseEvent, index: number) => {
     e.preventDefault()
     e.stopPropagation()
     setNotePickerStep(index)
-    const step = steps[index]
+    if (!audio) return
+    const step = audio.pattern.steps[index]
     if (step && step.note !== NO_VALUE) {
       setPickerOctave(Math.floor(step.note / 12) - 1)
     }
-  }, [steps])
+  }, [audio])
 
   const handleStepWheel = useCallback((e: React.WheelEvent, index: number) => {
     e.stopPropagation()
-    const step = steps[index]
+    if (!audio) return
+    const step = audio.pattern.steps[index]
     if (!step || !step.gate) return
 
     const current = step.note === NO_VALUE ? 60 : step.note
@@ -83,28 +82,36 @@ function SequencerBody({ moduleId }: { moduleId: string }) {
     const next = Math.max(0, Math.min(127, current + delta))
     audio.setStep(index, { note: next })
     rerender()
-  }, [audio, steps])
+  }, [audio])
 
   const handleNoteSelect = useCallback((midi: number) => {
-    if (notePickerStep === null) return
+    if (notePickerStep === null || !audio) return
     audio.setStep(notePickerStep, { note: midi, gate: true, velocity: 1 })
     setNotePickerStep(null)
     rerender()
   }, [audio, notePickerStep])
 
   const handleLengthChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!audio) return
     const len = parseInt(e.target.value, 10)
     audio.setPatternLength(len)
     rerender()
   }, [audio])
 
   const handleOctave = useCallback((val: number) => {
+    if (!audio) return
     audio.octaveOffset = val
   }, [audio])
 
   const handleGateLen = useCallback((val: number) => {
+    if (!audio) return
     audio.gateLength = val
   }, [audio])
+
+  if (!audio) return null
+
+  const pattern = audio.pattern
+  const steps = pattern.steps
 
   const renderStepRow = (startIdx: number, endIdx: number) => {
     return steps.slice(startIdx, endIdx).map((step, i) => {

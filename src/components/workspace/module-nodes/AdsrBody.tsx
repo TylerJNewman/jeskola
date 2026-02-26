@@ -8,43 +8,44 @@ function AdsrBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
   const audio = entry?.audioNode as AdsrModule | undefined
   const gateActive = useRef(false)
-  if (!audio) return null
-
-  const state = audio.state as { attack: number; decay: number; sustain: number; release: number }
 
   const handleAttack = useCallback((val: number) => {
-    audio.setAttack(val)
-    audio.state = { ...audio.state, attack: val }
+    audio!.setAttack(val)
+    audio!.state = { ...audio!.state, attack: val }
   }, [audio])
 
   const handleDecay = useCallback((val: number) => {
-    audio.setDecay(val)
-    audio.state = { ...audio.state, decay: val }
+    audio!.setDecay(val)
+    audio!.state = { ...audio!.state, decay: val }
   }, [audio])
 
   const handleSustain = useCallback((val: number) => {
-    audio.setSustain(val)
-    audio.state = { ...audio.state, sustain: val }
+    audio!.setSustain(val)
+    audio!.state = { ...audio!.state, sustain: val }
   }, [audio])
 
   const handleRelease = useCallback((val: number) => {
-    audio.setRelease(val)
-    audio.state = { ...audio.state, release: val }
+    audio!.setRelease(val)
+    audio!.state = { ...audio!.state, release: val }
   }, [audio])
 
   const handleGateDown = useCallback(() => {
     if (!gateActive.current) {
       gateActive.current = true
-      audio.triggerAttack()
+      audio!.triggerAttack()
     }
   }, [audio])
 
   const handleGateUp = useCallback(() => {
     if (gateActive.current) {
       gateActive.current = false
-      audio.triggerRelease()
+      audio!.triggerRelease()
     }
   }, [audio])
+
+  if (!audio) return null
+
+  const state = audio.state as { attack: number; decay: number; sustain: number; release: number }
 
   return (
     <div className="flex flex-col gap-2">

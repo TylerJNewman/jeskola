@@ -20,6 +20,46 @@ const MODE_OPTIONS = [
 function OscillatorBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
   const audio = entry?.audioNode as OscillatorModule | undefined
+
+  const [, forceUpdate] = useState(0)
+  const rerender = () => forceUpdate(n => n + 1)
+
+  const handleOctave = useCallback((val: number) => {
+    audio!.setOctave(val)
+    audio!.state = { ...audio!.state, octave: val }
+  }, [audio])
+
+  const handleSemitone = useCallback((val: number) => {
+    audio!.setSemitone(val)
+    audio!.state = { ...audio!.state, semitone: val }
+  }, [audio])
+
+  const handleCents = useCallback((val: number) => {
+    audio!.setCents(val)
+    audio!.state = { ...audio!.state, cents: val }
+  }, [audio])
+
+  const handleFreq = useCallback((val: number) => {
+    audio!.setFreq(val)
+    audio!.state = { ...audio!.state, freq: val }
+  }, [audio])
+
+  const handleMode = useCallback((val: string) => {
+    audio!.setMode(val as 'pitch' | 'freq')
+    audio!.state = { ...audio!.state, mode: val }
+    rerender()
+  }, [audio])
+
+  const handleType = useCallback((val: string) => {
+    audio!.setType(val as OscillatorType)
+    audio!.state = { ...audio!.state, type: val }
+    rerender()
+  }, [audio])
+
+  const handleFreqLogToggle = useCallback((isLog: boolean) => {
+    audio!.state = { ...audio!.state, freqLog: isLog }
+  }, [audio])
+
   if (!audio) return null
 
   const state = audio.state as {
@@ -28,46 +68,7 @@ function OscillatorBody({ moduleId }: { moduleId: string }) {
     type: string; mode: string
   }
 
-  const [, forceUpdate] = useState(0)
-  const rerender = () => forceUpdate(n => n + 1)
-
   const mode = state.mode || 'pitch'
-
-  const handleOctave = useCallback((val: number) => {
-    audio.setOctave(val)
-    audio.state = { ...audio.state, octave: val }
-  }, [audio])
-
-  const handleSemitone = useCallback((val: number) => {
-    audio.setSemitone(val)
-    audio.state = { ...audio.state, semitone: val }
-  }, [audio])
-
-  const handleCents = useCallback((val: number) => {
-    audio.setCents(val)
-    audio.state = { ...audio.state, cents: val }
-  }, [audio])
-
-  const handleFreq = useCallback((val: number) => {
-    audio.setFreq(val)
-    audio.state = { ...audio.state, freq: val }
-  }, [audio])
-
-  const handleMode = useCallback((val: string) => {
-    audio.setMode(val as 'pitch' | 'freq')
-    audio.state = { ...audio.state, mode: val }
-    rerender()
-  }, [audio])
-
-  const handleType = useCallback((val: string) => {
-    audio.setType(val as OscillatorType)
-    audio.state = { ...audio.state, type: val }
-    rerender()
-  }, [audio])
-
-  const handleFreqLogToggle = useCallback((isLog: boolean) => {
-    audio.state = { ...audio.state, freqLog: isLog }
-  }, [audio])
 
   return (
     <div className="flex flex-col gap-2">

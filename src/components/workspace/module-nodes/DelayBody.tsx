@@ -7,24 +7,25 @@ import { registerModuleBody } from '@/lib/module-body-registry'
 function DelayBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
   const audio = entry?.audioNode as DelayModule | undefined
-  if (!audio) return null
-
-  const state = audio.state as { time: number; feedback: number; mix: number }
 
   const handleTime = useCallback((val: number) => {
-    audio.setTime(val)
-    audio.state = { ...audio.state, time: val }
+    audio!.setTime(val)
+    audio!.state = { ...audio!.state, time: val }
   }, [audio])
 
   const handleFeedback = useCallback((val: number) => {
-    audio.setFeedback(val)
-    audio.state = { ...audio.state, feedback: val }
+    audio!.setFeedback(val)
+    audio!.state = { ...audio!.state, feedback: val }
   }, [audio])
 
   const handleMix = useCallback((val: number) => {
-    audio.setMix(val)
-    audio.state = { ...audio.state, mix: val }
+    audio!.setMix(val)
+    audio!.state = { ...audio!.state, mix: val }
   }, [audio])
+
+  if (!audio) return null
+
+  const state = audio.state as { time: number; feedback: number; mix: number }
 
   return (
     <div className="flex gap-2 justify-center">

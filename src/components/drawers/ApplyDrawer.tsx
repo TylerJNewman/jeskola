@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   PRESETS, PRESET_LABELS, PRESET_ORDER,
   RECIPE_LABELS, RECIPE_ORDER,
@@ -42,7 +42,13 @@ export function ApplyDrawer({ open, onClose }: { open: boolean; onClose: () => v
   const [targetType, setTargetType] = useState<ApplyTarget>('auto')
   const [targetModuleId, setTargetModuleId] = useState('')
   const [preview, setPreview] = useState<ApplySummary | null>(null)
-  const modules = useWorkspaceStore(s => s.listModules())
+  const modulesMap = useWorkspaceStore(s => s.modules)
+  const modules = useMemo(() =>
+    Array.from(modulesMap.entries())
+      .filter(([id]) => id !== 'master')
+      .map(([id, m]) => ({ id, type: m.type })),
+    [modulesMap]
+  )
   const { initialize, audioState } = useAudioEngine()
 
   const getSourceJson = useCallback((): string => {

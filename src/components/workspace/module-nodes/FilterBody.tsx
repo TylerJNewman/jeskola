@@ -14,31 +14,33 @@ const FILTER_TYPE_OPTIONS = [
 function FilterBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
   const audio = entry?.audioNode as FilterModule | undefined
-  if (!audio) return null
 
-  const state = audio.state as { cutoff: number; cutoffLog?: boolean; res: number; type: string }
   const [, forceUpdate] = useState(0)
   const rerender = () => forceUpdate(n => n + 1)
 
   const handleCutoff = useCallback((val: number) => {
-    audio.setFrequency(val)
-    audio.state = { ...audio.state, cutoff: val }
+    audio!.setFrequency(val)
+    audio!.state = { ...audio!.state, cutoff: val }
   }, [audio])
 
   const handleCutoffLog = useCallback((isLog: boolean) => {
-    audio.state = { ...audio.state, cutoffLog: isLog }
+    audio!.state = { ...audio!.state, cutoffLog: isLog }
   }, [audio])
 
   const handleRes = useCallback((val: number) => {
-    audio.setResonance(val)
-    audio.state = { ...audio.state, res: val }
+    audio!.setResonance(val)
+    audio!.state = { ...audio!.state, res: val }
   }, [audio])
 
   const handleType = useCallback((val: string) => {
-    audio.setType(val as BiquadFilterType)
-    audio.state = { ...audio.state, type: val }
+    audio!.setType(val as BiquadFilterType)
+    audio!.state = { ...audio!.state, type: val }
     rerender()
   }, [audio])
+
+  if (!audio) return null
+
+  const state = audio.state as { cutoff: number; cutoffLog?: boolean; res: number; type: string }
 
   return (
     <div className="flex flex-col gap-2">

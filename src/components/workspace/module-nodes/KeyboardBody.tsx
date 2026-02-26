@@ -8,28 +8,29 @@ function KeyboardBody({ moduleId }: { moduleId: string }) {
   const audio = entry?.audioNode as KeyboardModule | undefined
   const [, forceUpdate] = useState(0)
   const rerender = () => forceUpdate(n => n + 1)
+
+  const handleOctaveDown = useCallback(() => {
+    audio!.adjustOctave(-1)
+    rerender()
+  }, [audio])
+
+  const handleOctaveUp = useCallback(() => {
+    audio!.adjustOctave(1)
+    rerender()
+  }, [audio])
+
+  const handleEnabledToggle = useCallback(() => {
+    const next = !audio!.enabled
+    audio!.setEnabled(next)
+    if (!next) audio!.noteOff()
+    rerender()
+  }, [audio])
+
   if (!audio) return null
 
   const octave = audio.octaveOffset
   const enabled = audio.enabled
   const signedOct = octave >= 0 ? `+${octave}` : String(octave)
-
-  const handleOctaveDown = useCallback(() => {
-    audio.adjustOctave(-1)
-    rerender()
-  }, [audio])
-
-  const handleOctaveUp = useCallback(() => {
-    audio.adjustOctave(1)
-    rerender()
-  }, [audio])
-
-  const handleEnabledToggle = useCallback(() => {
-    const next = !audio.enabled
-    audio.setEnabled(next)
-    if (!next) audio.noteOff()
-    rerender()
-  }, [audio])
 
   return (
     <div className="flex flex-col gap-2">

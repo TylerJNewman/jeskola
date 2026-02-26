@@ -7,28 +7,29 @@ import { registerModuleBody } from '@/lib/module-body-registry'
 function DistortionBody({ moduleId }: { moduleId: string }) {
   const entry = useWorkspaceStore(s => s.modules.get(moduleId))
   const audio = entry?.audioNode as DistortionModule | undefined
-  if (!audio) return null
-
-  const state = audio.state as { drive: number; driveLog?: boolean; mix: number; output: number }
 
   const handleDrive = useCallback((val: number) => {
-    audio.setDrive(val)
-    audio.state = { ...audio.state, drive: val }
+    audio!.setDrive(val)
+    audio!.state = { ...audio!.state, drive: val }
   }, [audio])
 
   const handleDriveLog = useCallback((isLog: boolean) => {
-    audio.state = { ...audio.state, driveLog: isLog }
+    audio!.state = { ...audio!.state, driveLog: isLog }
   }, [audio])
 
   const handleMix = useCallback((val: number) => {
-    audio.setMix(val)
-    audio.state = { ...audio.state, mix: val }
+    audio!.setMix(val)
+    audio!.state = { ...audio!.state, mix: val }
   }, [audio])
 
   const handleOutput = useCallback((val: number) => {
-    audio.setOutput(val)
-    audio.state = { ...audio.state, output: val }
+    audio!.setOutput(val)
+    audio!.state = { ...audio!.state, output: val }
   }, [audio])
+
+  if (!audio) return null
+
+  const state = audio.state as { drive: number; driveLog?: boolean; mix: number; output: number }
 
   return (
     <div className="flex gap-2 justify-center">
