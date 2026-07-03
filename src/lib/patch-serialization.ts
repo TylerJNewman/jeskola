@@ -52,6 +52,23 @@ export function exportPatch(): string {
   return JSON.stringify(state)
 }
 
+export function exportSelectedPatch(): string | null {
+  const store = useWorkspaceStore.getState()
+  const patch = store.buildPatchFromSelection()
+  if (!patch || patch.modules.length === 0) return null
+
+  const moduleIds = new Set(patch.modules.map(m => m.id))
+  const normalized = {
+    modules: patch.modules.filter(m => moduleIds.has(m.id) && m.id !== 'master'),
+    connections: patch.connections.filter(c =>
+      moduleIds.has(c.sourceModuleId) && moduleIds.has(c.targetModuleId)
+    ),
+  }
+
+  if (normalized.modules.length === 0) return null
+  return JSON.stringify(normalized)
+}
+
 export function importPatch(jsonString: string): { modulesCreated: number; connectionsCreated: number; warnings: string[] } {
   const store = useWorkspaceStore.getState()
   const warnings: string[] = []

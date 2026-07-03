@@ -53,6 +53,8 @@ function KnobInner({
 }: KnobProps) {
   const [logMode, setLogMode] = useState(initialLogMode)
   const containerRef = useRef<HTMLDivElement>(null)
+  const indicatorRef = useRef<HTMLDivElement>(null)
+  const valueRef = useRef<HTMLSpanElement>(null)
 
   const isDragging = useRef(false)
   const startY = useRef(0)
@@ -105,18 +107,14 @@ function KnobInner({
 
     currentValue.current = raw
 
-    if (containerRef.current) {
-      const knobEl = containerRef.current.querySelector('.knob-indicator') as HTMLElement
-      const valueEl = containerRef.current.querySelector('.knob-value') as HTMLElement
-      if (knobEl) {
-        const lin = (step && step > 0)
-          ? calculateLinearFromValue(raw, min, max, logMode)
-          : currentLinear.current
-        knobEl.style.transform = `rotate(${-135 + lin * 270}deg)`
-      }
-      if (valueEl) {
-        valueEl.textContent = formatValue(raw)
-      }
+    if (indicatorRef.current) {
+      const lin = (step && step > 0)
+        ? calculateLinearFromValue(raw, min, max, logMode)
+        : currentLinear.current
+      indicatorRef.current.style.transform = `rotate(${-135 + lin * 270}deg)`
+    }
+    if (valueRef.current) {
+      valueRef.current.textContent = formatValue(raw)
     }
 
     if (pendingRaf.current === null) {
@@ -202,11 +200,13 @@ function KnobInner({
         }}
         onTouchStart={(e) => {
           e.stopPropagation()
+          e.preventDefault()
           handleStart(e.touches[0].clientY)
         }}
         onDoubleClick={handleDoubleClick}
       >
         <div
+          ref={indicatorRef}
           className="knob-indicator w-12 h-12 rounded-full bg-panel relative"
           style={{ transform: `rotate(${degrees}deg)` }}
         >
@@ -215,7 +215,7 @@ function KnobInner({
       </div>
 
       <div className="flex items-center gap-1.5">
-        <span className="knob-value text-[12px] text-accent-orange tabular-nums">
+        <span ref={valueRef} className="knob-value text-[12px] text-accent-orange tabular-nums">
           {formatValue(value)}
         </span>
         {logCapable && (

@@ -10,6 +10,8 @@ tags:
 - comprehensive
 ---
 
+> **⚠️ HISTORICAL**: This documents the pre-React vanilla TypeScript architecture. For the current React 19 + Zustand + React Flow architecture, see [[Jeskola React Architecture]].
+
 # Jeskola Current State Research
 
 ## Executive Summary

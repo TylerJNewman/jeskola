@@ -9,10 +9,16 @@ import { Button } from '@/components/ui/button'
 export function Toolbar({
   onSectionToggle,
   onApplyToggle,
+  onSpread,
+  onCompact,
+  onGridSnap,
   applyOpen,
 }: {
   onSectionToggle: (section: Section | null) => void
   onApplyToggle: () => void
+  onSpread: () => void
+  onCompact: () => void
+  onGridSnap: () => void
   applyOpen: boolean
 }) {
   return (
@@ -41,6 +47,33 @@ export function Toolbar({
           )}
         >
           Apply
+        </Button>
+        <Button
+          onClick={onSpread}
+          variant="rams"
+          size="rams-toolbar-box"
+          className="transition-colors hover:border-accent-orange"
+          title="Spread modules (Ctrl/Cmd+Shift+=)"
+        >
+          Spread
+        </Button>
+        <Button
+          onClick={onCompact}
+          variant="rams"
+          size="rams-toolbar-box"
+          className="transition-colors hover:border-accent-orange"
+          title="Compact modules (Ctrl/Cmd+Shift+-)"
+        >
+          Compact
+        </Button>
+        <Button
+          onClick={onGridSnap}
+          variant="rams"
+          size="rams-toolbar-box"
+          className="transition-colors hover:border-accent-orange"
+          title="Snap modules to grid (Ctrl/Cmd+Shift+0)"
+        >
+          Grid
         </Button>
 
         <div className="flex-1" />

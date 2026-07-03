@@ -17,6 +17,7 @@ export function PresetDrawer() {
   return (
     <div className="flex flex-col gap-3">
       <select
+        data-testid="preset-select"
         value={selected}
         onChange={e => setSelected(e.target.value)}
         className="control-select text-[11px] bg-bg border border-border rounded-[4px] text-text-light w-full focus:outline-none focus:border-accent-orange"
@@ -29,6 +30,7 @@ export function PresetDrawer() {
         ))}
       </select>
       <Button
+        data-testid="preset-load"
         onClick={handleLoad}
         disabled={!selected}
         variant="rams"

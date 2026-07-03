@@ -1,3 +1,9 @@
+---
+title: extraction
+type: note
+permalink: jeskola/extraction
+---
+
 # Extract Conversation into memories/ using Basic Memory MCP
 
 ## Goal
@@ -26,4 +32,3 @@ Extract important information from a referenced conversation into the following 
 4.  **Verify and report:**
     -   After all writes/edits, call `sync_status()` to confirm memory health.
     -   Provide a summary list of the notes you created or updated.
-

@@ -2,16 +2,18 @@ import { useState, useCallback } from 'react'
 import { PresetDrawer } from './PresetDrawer'
 import { StackDrawer } from './StackDrawer'
 import { RecipeDrawer } from './RecipeDrawer'
+import { VoiceDrawer } from './VoiceDrawer'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export type Section = 'recipe' | 'preset' | 'stack'
+export type Section = 'recipe' | 'preset' | 'stack' | 'voice'
 
 const SECTIONS: { key: Section; label: string }[] = [
   { key: 'recipe', label: 'Recipe' },
   { key: 'preset', label: 'Preset' },
   { key: 'stack', label: 'Stack' },
+  { key: 'voice', label: 'Voice' },
 ]
 
 export function SectionChips({ onToggle }: { onToggle: (section: Section | null) => void }) {
@@ -61,6 +63,7 @@ export function SectionPanel({ section }: { section: Section | null }) {
         {section === 'recipe' && <RecipeDrawer />}
         {section === 'preset' && <PresetDrawer />}
         {section === 'stack' && <StackDrawer />}
+        {section === 'voice' && <VoiceDrawer />}
       </CardContent>
       </Card>
     </aside>

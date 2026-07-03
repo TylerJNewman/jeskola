@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -22,10 +22,13 @@ const nodeTypes = { module: ModuleNode }
 const edgeTypes = { audio: AudioCable }
 
 export function WorkspaceCanvas() {
+  const [snapToGrid, setSnapToGrid] = useState(false)
   const modules = useWorkspaceStore(s => s.modules)
   const connections = useWorkspaceStore(s => s.connections)
+  const selectedModuleIds = useWorkspaceStore(s => s.selectedModuleIds)
   const addConnection = useWorkspaceStore(s => s.addConnection)
   const moveModule = useWorkspaceStore(s => s.moveModule)
+  const setSelectedModules = useWorkspaceStore(s => s.setSelectedModules)
 
   const nodes: Node[] = useMemo(() => {
     return Array.from(modules.values()).map(m => ({
@@ -77,17 +80,60 @@ export function WorkspaceCanvas() {
   }, [addConnection])
 
   const onNodesChange: OnNodesChange = useCallback((changes: NodeChange[]) => {
+    const nextSelected = new Set(selectedModuleIds)
+    let selectionChanged = false
+
     for (const change of changes) {
       if (change.type === 'position' && change.position && change.id) {
         moveModule(change.id, change.position)
       }
+      if (change.type === 'select') {
+        selectionChanged = true
+        if (change.selected) {
+          nextSelected.add(change.id)
+        } else {
+          nextSelected.delete(change.id)
+        }
+      }
+      if (change.type === 'remove') {
+        selectionChanged = true
+        nextSelected.delete(change.id)
+      }
     }
-  }, [moveModule])
+
+    if (selectionChanged) {
+      setSelectedModules(Array.from(nextSelected))
+    }
+  }, [moveModule, selectedModuleIds, setSelectedModules])
+
+  const onSelectionChange = useCallback((selection: { nodes: Array<{ id: string }> }) => {
+    const ids = selection.nodes.map(n => n.id)
+    setSelectedModules(ids)
+  }, [setSelectedModules])
 
   const isValidConnection = useCallback((connection: { source: string | null; target: string | null }) => {
     if (!connection.source || !connection.target) return false
     if (connection.source === connection.target) return false
     return true
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Shift') setSnapToGrid(true)
+    }
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Shift') setSnapToGrid(false)
+    }
+    const onBlur = () => setSnapToGrid(false)
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
   }, [])
 
   return (
@@ -98,11 +144,15 @@ export function WorkspaceCanvas() {
       edgeTypes={edgeTypes}
       onConnect={onConnect}
       onNodesChange={onNodesChange}
+      onSelectionChange={onSelectionChange}
       isValidConnection={isValidConnection}
+      selectionOnDrag
       fitView={false}
       minZoom={0.15}
       maxZoom={2.0}
       defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+      snapToGrid={snapToGrid}
+      snapGrid={[20, 20]}
       proOptions={{ hideAttribution: true }}
       className="bg-bg"
     >
